@@ -1,9 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/marcellolins/mossy/internal/tui/components/footer"
 	"github.com/marcellolins/mossy/internal/tui/components/repopicker"
 	"github.com/marcellolins/mossy/internal/tui/components/tabs"
 	"github.com/marcellolins/mossy/internal/tui/context"
@@ -14,11 +18,13 @@ type viewState int
 const (
 	viewNormal viewState = iota
 	viewRepoPicker
+	viewConfirmDelete
 )
 
 type Model struct {
 	ctx        *context.ProgramContext
 	tabs       tabs.Model
+	footer     footer.Model
 	repoPicker repopicker.Model
 	view       viewState
 }
@@ -28,9 +34,10 @@ func New() Model {
 		ActiveRepo: -1,
 	}
 	return Model{
-		ctx:  ctx,
-		tabs: tabs.New(ctx),
-		view: viewNormal,
+		ctx:    ctx,
+		tabs:   tabs.New(ctx),
+		footer: footer.New(ctx),
+		view:   viewNormal,
 	}
 }
 
@@ -51,6 +58,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
+	}
+
+	if m.view == viewConfirmDelete {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "y":
+				i := m.ctx.ActiveRepo
+				m.ctx.Repos = append(m.ctx.Repos[:i], m.ctx.Repos[i+1:]...)
+				if len(m.ctx.Repos) == 0 {
+					m.ctx.ActiveRepo = -1
+				} else if i >= len(m.ctx.Repos) {
+					m.ctx.ActiveRepo = len(m.ctx.Repos) - 1
+				}
+				m.tabs.ScrollToActive()
+			}
+			m.ctx.Message = ""
+			m.view = viewNormal
+		}
+		return m, nil
 	}
 
 	if m.view == viewRepoPicker {
@@ -91,6 +118,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.repoPicker = repopicker.New(home, m.ctx.Width, m.ctx.Height, paths)
 			m.view = viewRepoPicker
 			return m, nil
+		case "d":
+			if len(m.ctx.Repos) > 0 {
+				name := m.ctx.Repos[m.ctx.ActiveRepo].Name
+				m.ctx.Message = fmt.Sprintf("Remove %q? (y/n)", name)
+				m.view = viewConfirmDelete
+				return m, nil
+			}
 		case "h", "left":
 			if len(m.ctx.Repos) > 0 && m.ctx.ActiveRepo > 0 {
 				m.ctx.ActiveRepo--
@@ -111,5 +145,16 @@ func (m Model) View() string {
 	if m.view == viewRepoPicker {
 		return m.repoPicker.View()
 	}
-	return m.tabs.View() + "\n"
+
+	top := m.tabs.View()
+	foot := m.footer.View()
+
+	topHeight := lipgloss.Height(top)
+	footHeight := lipgloss.Height(foot)
+	mid := m.ctx.Height - topHeight - footHeight
+	if mid < 0 {
+		mid = 0
+	}
+
+	return top + "\n" + strings.Repeat("\n", mid) + foot
 }

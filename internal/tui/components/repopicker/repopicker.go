@@ -45,11 +45,6 @@ var (
 			Foreground(lipgloss.Color("245")).
 			Italic(true)
 
-	warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFBD2E")).
-			Italic(true).
-			Padding(0, 2)
-
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")).
 			Padding(0, 2)
@@ -67,7 +62,6 @@ type Model struct {
 	height     int
 	err        error
 	existing   map[string]struct{}
-	warning    string
 }
 
 func New(startDir string, width, height int, existingPaths []string) Model {
@@ -148,7 +142,6 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		m.warning = ""
 		switch msg.String() {
 		case "esc":
 			return m, func() tea.Msg { return RepoPickerCancelledMsg{} }
@@ -175,7 +168,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.currentDir = entry.path
 				m.readDir()
 			} else if entry.isAdded {
-				m.warning = fmt.Sprintf("%s is already added", entry.name)
+				// Already added — do nothing
 			} else {
 				name := filepath.Base(entry.path)
 				path := entry.path
@@ -240,11 +233,6 @@ func (m Model) View() string {
 	}
 
 	for i := end - m.offset; i < visible; i++ {
-		b.WriteString("\n")
-	}
-
-	if m.warning != "" {
-		b.WriteString(warningStyle.Render("⚠  " + m.warning))
 		b.WriteString("\n")
 	}
 

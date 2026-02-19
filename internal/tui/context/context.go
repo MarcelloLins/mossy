@@ -10,4 +10,5 @@ type ProgramContext struct {
 	Height     int
 	Repos      []Repository
 	ActiveRepo int
+	Message    string
 }
