@@ -61,6 +61,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Path: msg.Path,
 			})
 			m.ctx.ActiveRepo = len(m.ctx.Repos) - 1
+			m.tabs.ScrollToActive()
 			m.view = viewNormal
 			return m, nil
 		case repopicker.RepoPickerCancelledMsg:
@@ -93,10 +94,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "h", "left":
 			if len(m.ctx.Repos) > 0 && m.ctx.ActiveRepo > 0 {
 				m.ctx.ActiveRepo--
+				m.tabs.ScrollToActive()
 			}
 		case "l", "right":
 			if len(m.ctx.Repos) > 0 && m.ctx.ActiveRepo < len(m.ctx.Repos)-1 {
 				m.ctx.ActiveRepo++
+				m.tabs.ScrollToActive()
 			}
 		}
 	}

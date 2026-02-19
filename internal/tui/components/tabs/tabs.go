@@ -12,7 +12,7 @@ var (
 	logoStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#8FBC8F")).
-			Padding(0, 1)
+			Padding(1, 2, 0, 1)
 
 	activeTabStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -38,10 +38,15 @@ var (
 
 	separatorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
+
+	overflowStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")).
+			Padding(0, 1)
 )
 
 type Model struct {
-	ctx *context.ProgramContext
+	ctx          *context.ProgramContext
+	scrollOffset int
 }
 
 func New(ctx *context.ProgramContext) Model {
@@ -56,29 +61,137 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) View() string {
-	logo := logoStyle.Render("🌿 mossy")
-
-	sep := separatorStyle.Render("│")
-
-	var parts []string
-	parts = append(parts, logo, sep)
-
+// ScrollToActive adjusts the scroll offset to ensure the active tab is visible.
+func (m *Model) ScrollToActive() {
 	if len(m.ctx.Repos) == 0 {
-		parts = append(parts, emptyStyle.Render("No repositories added. Press 'a' to add your first repository."))
-	} else {
-		for i, repo := range m.ctx.Repos {
-			if i == m.ctx.ActiveRepo {
-				parts = append(parts, activeTabStyle.Render(repo.Name))
-			} else {
-				parts = append(parts, inactiveTabStyle.Render(repo.Name))
-			}
-			parts = append(parts, sep)
-		}
-		parts = append(parts, addTabStyle.Render("+ Add"))
+		m.scrollOffset = 0
+		return
+	}
+	if m.ctx.ActiveRepo < m.scrollOffset {
+		m.scrollOffset = m.ctx.ActiveRepo
 	}
 
-	bar := lipgloss.JoinHorizontal(lipgloss.Center, parts...)
+	// Scroll forward until active tab fits in the available width.
+	logo := logoStyle.Render("🌿 mossy")
+	logoWidth := lipgloss.Width(logo)
+	sep := separatorStyle.Render("│")
+	sepWidth := lipgloss.Width(sep)
+	addTab := addTabStyle.Render("+ Add")
+	addWidth := lipgloss.Width(addTab)
+	leftIndicator := overflowStyle.Render("◄")
+	rightIndicator := overflowStyle.Render("►")
+
+	for m.scrollOffset <= m.ctx.ActiveRepo {
+		budget := m.ctx.Width - logoWidth - addWidth - sepWidth
+
+		if m.scrollOffset > 0 {
+			budget -= lipgloss.Width(leftIndicator)
+		}
+
+		used := 0
+		fits := false
+		for i := m.scrollOffset; i < len(m.ctx.Repos); i++ {
+			var tab string
+			if i == m.ctx.ActiveRepo {
+				tab = activeTabStyle.Render(m.ctx.Repos[i].Name)
+			} else {
+				tab = inactiveTabStyle.Render(m.ctx.Repos[i].Name)
+			}
+			w := lipgloss.Width(tab) + sepWidth
+			remaining := budget - used - w
+
+			// Reserve space for ► if there are more tabs after this one.
+			if i < len(m.ctx.Repos)-1 && remaining < lipgloss.Width(rightIndicator) && i >= m.ctx.ActiveRepo {
+				// Active tab doesn't fit with ► indicator — need to scroll more.
+				break
+			}
+
+			used += w
+			if i == m.ctx.ActiveRepo {
+				fits = true
+				break
+			}
+			if used > budget {
+				break
+			}
+		}
+
+		if fits {
+			break
+		}
+		m.scrollOffset++
+	}
+}
+
+func (m Model) View() string {
+	logo := logoStyle.Render("🌿 mossy")
+	logoWidth := lipgloss.Width(logo)
+	sep := separatorStyle.Render("│")
+	sepWidth := lipgloss.Width(sep)
+
+	if len(m.ctx.Repos) == 0 {
+		tabContent := emptyStyle.Render("No repositories added. Press 'a' to add your first repository.")
+		tabs := lipgloss.JoinHorizontal(lipgloss.Bottom, tabContent)
+		bar := lipgloss.JoinHorizontal(lipgloss.Bottom, tabs,
+			lipgloss.PlaceHorizontal(m.ctx.Width-lipgloss.Width(tabs), lipgloss.Right, logo),
+		)
+		border := borderColor.Render(strings.Repeat("─", m.ctx.Width))
+		return bar + "\n" + border
+	}
+
+	addTab := addTabStyle.Render("+ Add")
+	addWidth := lipgloss.Width(addTab)
+	leftIndicator := overflowStyle.Render("◄")
+	rightIndicator := overflowStyle.Render("►")
+
+	budget := m.ctx.Width - logoWidth - addWidth - sepWidth
+
+	hasLeft := m.scrollOffset > 0
+	if hasLeft {
+		budget -= lipgloss.Width(leftIndicator)
+	}
+
+	var tabParts []string
+	if hasLeft {
+		tabParts = append(tabParts, leftIndicator)
+	}
+
+	used := 0
+	lastVisible := m.scrollOffset
+	for i := m.scrollOffset; i < len(m.ctx.Repos); i++ {
+		var tab string
+		if i == m.ctx.ActiveRepo {
+			tab = activeTabStyle.Render(m.ctx.Repos[i].Name)
+		} else {
+			tab = inactiveTabStyle.Render(m.ctx.Repos[i].Name)
+		}
+		w := lipgloss.Width(tab) + sepWidth
+
+		// Reserve space for ► if this isn't the last repo.
+		needed := w
+		if i < len(m.ctx.Repos)-1 {
+			needed += lipgloss.Width(rightIndicator)
+		}
+		if used+needed > budget && i > m.scrollOffset {
+			break
+		}
+
+		tabParts = append(tabParts, tab, sep)
+		used += w
+		lastVisible = i
+	}
+
+	hasRight := lastVisible < len(m.ctx.Repos)-1
+	if hasRight {
+		tabParts = append(tabParts, rightIndicator)
+	}
+
+	tabParts = append(tabParts, addTab)
+
+	tabs := lipgloss.JoinHorizontal(lipgloss.Bottom, tabParts...)
+	bar := lipgloss.JoinHorizontal(lipgloss.Bottom, tabs,
+		lipgloss.PlaceHorizontal(m.ctx.Width-lipgloss.Width(tabs), lipgloss.Right, logo),
+	)
 	border := borderColor.Render(strings.Repeat("─", m.ctx.Width))
 
 	return bar + "\n" + border
