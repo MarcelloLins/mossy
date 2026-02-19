@@ -22,6 +22,7 @@ type dirEntry struct {
 	name      string
 	path      string
 	isGitRepo bool
+	isAdded   bool
 }
 
 var (
@@ -40,6 +41,15 @@ var (
 	gitTagStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#8FBC8F"))
 
+	addedTagStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")).
+			Italic(true)
+
+	warningStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFBD2E")).
+			Italic(true).
+			Padding(0, 2)
+
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")).
 			Padding(0, 2)
@@ -56,13 +66,20 @@ type Model struct {
 	width      int
 	height     int
 	err        error
+	existing   map[string]struct{}
+	warning    string
 }
 
-func New(startDir string, width, height int) Model {
+func New(startDir string, width, height int, existingPaths []string) Model {
+	existing := make(map[string]struct{}, len(existingPaths))
+	for _, p := range existingPaths {
+		existing[p] = struct{}{}
+	}
 	m := Model{
 		currentDir: startDir,
 		width:      width,
 		height:     height,
+		existing:   existing,
 	}
 	m.readDir()
 	return m
@@ -99,10 +116,13 @@ func (m *Model) readDir() {
 		}
 		p := filepath.Join(m.currentDir, e.Name())
 		_, gitErr := os.Stat(filepath.Join(p, ".git"))
+		isGit := gitErr == nil
+		_, added := m.existing[p]
 		dirs = append(dirs, dirEntry{
 			name:      e.Name(),
 			path:      p,
-			isGitRepo: gitErr == nil,
+			isGitRepo: isGit,
+			isAdded:   isGit && added,
 		})
 	}
 
@@ -128,6 +148,7 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		m.warning = ""
 		switch msg.String() {
 		case "esc":
 			return m, func() tea.Msg { return RepoPickerCancelledMsg{} }
@@ -153,6 +174,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if entry.name == ".." || !entry.isGitRepo {
 				m.currentDir = entry.path
 				m.readDir()
+			} else if entry.isAdded {
+				m.warning = fmt.Sprintf("%s is already added", entry.name)
 			} else {
 				name := filepath.Base(entry.path)
 				path := entry.path
@@ -202,7 +225,9 @@ func (m Model) View() string {
 		}
 
 		line := fmt.Sprintf("%s 📁 %s", cursor, entry.name)
-		if entry.isGitRepo {
+		if entry.isAdded {
+			line += "  " + addedTagStyle.Render("✓ added")
+		} else if entry.isGitRepo {
 			line += "  " + gitTagStyle.Render("✓ git")
 		}
 
@@ -215,6 +240,11 @@ func (m Model) View() string {
 	}
 
 	for i := end - m.offset; i < visible; i++ {
+		b.WriteString("\n")
+	}
+
+	if m.warning != "" {
+		b.WriteString(warningStyle.Render("⚠  " + m.warning))
 		b.WriteString("\n")
 	}
 

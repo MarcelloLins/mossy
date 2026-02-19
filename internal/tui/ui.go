@@ -83,14 +83,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err != nil {
 				home = "/"
 			}
-			m.repoPicker = repopicker.New(home, m.ctx.Width, m.ctx.Height)
+			var paths []string
+			for _, r := range m.ctx.Repos {
+				paths = append(paths, r.Path)
+			}
+			m.repoPicker = repopicker.New(home, m.ctx.Width, m.ctx.Height, paths)
 			m.view = viewRepoPicker
 			return m, nil
-		case "h":
+		case "h", "left":
 			if len(m.ctx.Repos) > 0 && m.ctx.ActiveRepo > 0 {
 				m.ctx.ActiveRepo--
 			}
-		case "l":
+		case "l", "right":
 			if len(m.ctx.Repos) > 0 && m.ctx.ActiveRepo < len(m.ctx.Repos)-1 {
 				m.ctx.ActiveRepo++
 			}
