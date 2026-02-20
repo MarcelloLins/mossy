@@ -17,6 +17,9 @@ mossy
 *.swo
 *~
 
+# Docs
+docs/
+
 # OS
 .DS_Store
 Thumbs.db

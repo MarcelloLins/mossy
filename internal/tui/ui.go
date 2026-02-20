@@ -7,11 +7,17 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/marcellolins/mossy/internal/config"
 	"github.com/marcellolins/mossy/internal/tui/components/footer"
 	"github.com/marcellolins/mossy/internal/tui/components/repopicker"
 	"github.com/marcellolins/mossy/internal/tui/components/tabs"
 	"github.com/marcellolins/mossy/internal/tui/context"
 )
+
+type configLoadedMsg struct {
+	repos []config.Repository
+	err   error
+}
 
 type viewState int
 
@@ -42,11 +48,41 @@ func New() Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.SetWindowTitle("mossy")
+	return tea.Batch(
+		tea.SetWindowTitle("mossy"),
+		func() tea.Msg {
+			cfg, err := config.Load()
+			return configLoadedMsg{repos: cfg.Repos, err: err}
+		},
+	)
+}
+
+func (m Model) saveRepos() tea.Cmd {
+	repos := make([]config.Repository, len(m.ctx.Repos))
+	for i, r := range m.ctx.Repos {
+		repos[i] = config.Repository{Name: r.Name, Path: r.Path}
+	}
+	return func() tea.Msg {
+		_ = config.Save(config.Config{Repos: repos})
+		return nil
+	}
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case configLoadedMsg:
+		if msg.err == nil {
+			for _, r := range msg.repos {
+				m.ctx.Repos = append(m.ctx.Repos, context.Repository{
+					Name: r.Name,
+					Path: r.Path,
+				})
+			}
+			if len(m.ctx.Repos) > 0 {
+				m.ctx.ActiveRepo = 0
+			}
+		}
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
 		m.ctx.Height = msg.Height
@@ -73,6 +109,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.ctx.ActiveRepo = len(m.ctx.Repos) - 1
 				}
 				m.tabs.ScrollToActive()
+				m.ctx.Message = ""
+				m.view = viewNormal
+				return m, m.saveRepos()
 			}
 			m.ctx.Message = ""
 			m.view = viewNormal
@@ -90,7 +129,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ctx.ActiveRepo = len(m.ctx.Repos) - 1
 			m.tabs.ScrollToActive()
 			m.view = viewNormal
-			return m, nil
+			return m, m.saveRepos()
 		case repopicker.RepoPickerCancelledMsg:
 			m.view = viewNormal
 			return m, nil
