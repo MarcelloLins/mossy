@@ -146,6 +146,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ctx.ActiveRepo = 0
 			}
 		}
+		m.ctx.LastRefresh = time.Now()
 		return m, tea.Batch(m.fetchActiveWorktrees(), tickCmd(), uiTickCmd())
 	case uiTickMsg:
 		if m.ctx.AutoRefresh {
@@ -179,7 +180,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case worktreelist.WorktreesFetchedMsg:
 		m.ctx.Loading = false
-		m.ctx.LastRefresh = time.Now()
 		m.worktreeList, _ = m.worktreeList.Update(msg)
 		if m.ctx.ActiveRepo >= 0 && m.ctx.ActiveRepo < len(m.ctx.Repos) {
 			m.ctx.Repos[m.ctx.ActiveRepo].WorktreeCount = len(msg.Worktrees)
