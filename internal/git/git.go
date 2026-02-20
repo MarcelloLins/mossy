@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -42,7 +43,38 @@ func AddWorktree(repoPath, name, branch string) error {
 	wtPath := filepath.Join(filepath.Dir(repoPath), name)
 	cmd := exec.Command("git", "worktree", "add", wtPath, "-b", branch)
 	cmd.Dir = repoPath
-	return cmd.Run()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return parseWorktreeError(string(out), name, branch)
+	}
+	return nil
+}
+
+func parseWorktreeError(output, name, branch string) error {
+	// Extract only the fatal line — git prefixes output with
+	// "Preparing worktree ..." which can contain misleading keywords.
+	fatal := ""
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "fatal:") {
+			fatal = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "fatal:"))
+			break
+		}
+	}
+	if fatal == "" {
+		fatal = strings.TrimSpace(output)
+	}
+	switch {
+	case strings.Contains(fatal, "branch named") && strings.Contains(fatal, "already exists"):
+		return fmt.Errorf("a branch named %q already exists", branch)
+	case strings.Contains(fatal, "already exists"):
+		return fmt.Errorf("a worktree named %q already exists", name)
+	case strings.Contains(fatal, "not a valid branch name"):
+		return fmt.Errorf("%q is not a valid branch name", branch)
+	case strings.Contains(fatal, "is a missing but locked"):
+		return fmt.Errorf("worktree %q is locked; unlock it first", name)
+	default:
+		return fmt.Errorf("%s", fatal)
+	}
 }
 
 func detectDefaultBranch(repoPath string) string {
