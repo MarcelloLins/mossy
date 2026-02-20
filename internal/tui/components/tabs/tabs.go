@@ -26,8 +26,12 @@ var (
 
 	addTabStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245")).
+			Italic(true)
+
+	addTabKeyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")).
 			Italic(true).
-			Padding(0, 2)
+			Underline(true)
 
 	emptyStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245")).
@@ -88,7 +92,7 @@ func (m *Model) ScrollToActive() {
 	logoWidth := lipgloss.Width(logo)
 	sep := separatorStyle.Render("│")
 	sepWidth := lipgloss.Width(sep)
-	addTab := addTabStyle.Render("+ Add")
+	addTab := lipgloss.NewStyle().Padding(0, 2).Render(addTabStyle.Render("+ ") + addTabKeyStyle.Render("A") + addTabStyle.Render("dd"))
 	addWidth := lipgloss.Width(addTab)
 	leftIndicator := overflowStyle.Render("◄")
 	rightIndicator := overflowStyle.Render("►")
@@ -151,7 +155,7 @@ func (m Model) View() string {
 		return bar + "\n" + border
 	}
 
-	addTab := addTabStyle.Render("+ Add")
+	addTab := lipgloss.NewStyle().Padding(0, 2).Render(addTabStyle.Render("+ ") + addTabKeyStyle.Render("A") + addTabStyle.Render("dd"))
 	addWidth := lipgloss.Width(addTab)
 	leftIndicator := overflowStyle.Render("◄")
 	rightIndicator := overflowStyle.Render("►")
