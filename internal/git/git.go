@@ -19,7 +19,11 @@ func ListWorktrees(repoPath string) ([]Worktree, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseWorktrees(string(out)), nil
+	all := parseWorktrees(string(out))
+	if len(all) > 0 {
+		all = all[1:]
+	}
+	return all, nil
 }
 
 func parseWorktrees(output string) []Worktree {
