@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -11,6 +10,7 @@ import (
 	"github.com/marcellolins/mossy/internal/tui/components/footer"
 	"github.com/marcellolins/mossy/internal/tui/components/repopicker"
 	"github.com/marcellolins/mossy/internal/tui/components/tabs"
+	"github.com/marcellolins/mossy/internal/tui/components/worktreelist"
 	"github.com/marcellolins/mossy/internal/tui/context"
 )
 
@@ -28,11 +28,12 @@ const (
 )
 
 type Model struct {
-	ctx        *context.ProgramContext
-	tabs       tabs.Model
-	footer     footer.Model
-	repoPicker repopicker.Model
-	view       viewState
+	ctx          *context.ProgramContext
+	tabs         tabs.Model
+	footer       footer.Model
+	repoPicker   repopicker.Model
+	worktreeList worktreelist.Model
+	view         viewState
 }
 
 func New() Model {
@@ -40,10 +41,11 @@ func New() Model {
 		ActiveRepo: -1,
 	}
 	return Model{
-		ctx:    ctx,
-		tabs:   tabs.New(ctx),
-		footer: footer.New(ctx),
-		view:   viewNormal,
+		ctx:          ctx,
+		tabs:         tabs.New(ctx),
+		footer:       footer.New(ctx),
+		worktreeList: worktreelist.New(ctx),
+		view:         viewNormal,
 	}
 }
 
@@ -55,6 +57,13 @@ func (m Model) Init() tea.Cmd {
 			return configLoadedMsg{repos: cfg.Repos, err: err}
 		},
 	)
+}
+
+func (m Model) fetchActiveWorktrees() tea.Cmd {
+	if m.ctx.ActiveRepo < 0 || m.ctx.ActiveRepo >= len(m.ctx.Repos) {
+		return nil
+	}
+	return worktreelist.FetchWorktrees(m.ctx.Repos[m.ctx.ActiveRepo].Path)
 }
 
 func (m Model) saveRepos() tea.Cmd {
@@ -82,6 +91,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ctx.ActiveRepo = 0
 			}
 		}
+		return m, m.fetchActiveWorktrees()
+	case worktreelist.WorktreesFetchedMsg:
+		m.worktreeList, _ = m.worktreeList.Update(msg)
 		return m, nil
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
@@ -111,7 +123,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.tabs.ScrollToActive()
 				m.ctx.Message = ""
 				m.view = viewNormal
-				return m, m.saveRepos()
+				return m, tea.Batch(m.saveRepos(), m.fetchActiveWorktrees())
 			}
 			m.ctx.Message = ""
 			m.view = viewNormal
@@ -129,7 +141,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ctx.ActiveRepo = len(m.ctx.Repos) - 1
 			m.tabs.ScrollToActive()
 			m.view = viewNormal
-			return m, m.saveRepos()
+			return m, tea.Batch(m.saveRepos(), m.fetchActiveWorktrees())
 		case repopicker.RepoPickerCancelledMsg:
 			m.view = viewNormal
 			return m, nil
@@ -168,11 +180,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.ctx.Repos) > 0 && m.ctx.ActiveRepo > 0 {
 				m.ctx.ActiveRepo--
 				m.tabs.ScrollToActive()
+				return m, m.fetchActiveWorktrees()
 			}
 		case "l", "right":
 			if len(m.ctx.Repos) > 0 && m.ctx.ActiveRepo < len(m.ctx.Repos)-1 {
 				m.ctx.ActiveRepo++
 				m.tabs.ScrollToActive()
+				return m, m.fetchActiveWorktrees()
 			}
 		}
 	}
@@ -206,7 +220,7 @@ func (m Model) View() string {
 					Render("Press 'a' to add your first repository"))
 		content = lipgloss.Place(m.ctx.Width, mid, lipgloss.Center, lipgloss.Center, welcome)
 	} else {
-		content = strings.Repeat("\n", mid)
+		content = m.worktreeList.View(m.ctx.Width, mid)
 	}
 
 	return top + "\n" + content + foot
