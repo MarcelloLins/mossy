@@ -1,5 +1,7 @@
 package context
 
+import "time"
+
 type Repository struct {
 	Name          string
 	Path          string
@@ -7,9 +9,13 @@ type Repository struct {
 }
 
 type ProgramContext struct {
-	Width      int
-	Height     int
-	Repos      []Repository
-	ActiveRepo int
-	Message    string
+	Width           int
+	Height          int
+	Repos           []Repository
+	ActiveRepo      int
+	Message         string
+	Loading         bool
+	AutoRefresh     bool
+	LastRefresh     time.Time
+	PausedRemaining int
 }

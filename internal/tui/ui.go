@@ -3,10 +3,12 @@ package tui
 import (
 	"fmt"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcellolins/mossy/internal/config"
+	"github.com/marcellolins/mossy/internal/git"
 	"github.com/marcellolins/mossy/internal/tui/components/footer"
 	"github.com/marcellolins/mossy/internal/tui/components/repopicker"
 	"github.com/marcellolins/mossy/internal/tui/components/tabs"
@@ -17,6 +19,33 @@ import (
 type configLoadedMsg struct {
 	repos []config.Repository
 	err   error
+}
+
+type tickMsg time.Time
+type uiTickMsg time.Time
+
+type repoWorktreeResult struct {
+	path      string
+	worktrees []git.Worktree
+	err       error
+}
+
+type allWorktreesFetchedMsg struct {
+	results []repoWorktreeResult
+}
+
+const refreshInterval = 30 * time.Second
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(refreshInterval, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+func uiTickCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return uiTickMsg(t)
+	})
 }
 
 type viewState int
@@ -38,7 +67,8 @@ type Model struct {
 
 func New() Model {
 	ctx := &context.ProgramContext{
-		ActiveRepo: -1,
+		ActiveRepo:  -1,
+		AutoRefresh: true,
 	}
 	return Model{
 		ctx:          ctx,
@@ -77,6 +107,31 @@ func (m Model) saveRepos() tea.Cmd {
 	}
 }
 
+func (m Model) fetchAllWorktrees() tea.Cmd {
+	type repoRef struct {
+		path string
+	}
+	refs := make([]repoRef, len(m.ctx.Repos))
+	for i, r := range m.ctx.Repos {
+		refs[i] = repoRef{path: r.Path}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	return func() tea.Msg {
+		var results []repoWorktreeResult
+		for _, r := range refs {
+			wts, err := git.ListWorktrees(r.path)
+			results = append(results, repoWorktreeResult{
+				path:      r.path,
+				worktrees: wts,
+				err:       err,
+			})
+		}
+		return allWorktreesFetchedMsg{results: results}
+	}
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case configLoadedMsg:
@@ -91,8 +146,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ctx.ActiveRepo = 0
 			}
 		}
-		return m, m.fetchActiveWorktrees()
+		return m, tea.Batch(m.fetchActiveWorktrees(), tickCmd(), uiTickCmd())
+	case uiTickMsg:
+		if m.ctx.AutoRefresh {
+			return m, uiTickCmd()
+		}
+		return m, nil
+	case tickMsg:
+		if !m.ctx.AutoRefresh {
+			return m, nil
+		}
+		return m, tea.Batch(m.fetchAllWorktrees(), tickCmd())
+	case allWorktreesFetchedMsg:
+		m.ctx.Loading = false
+		m.ctx.LastRefresh = time.Now()
+		for _, res := range msg.results {
+			for i := range m.ctx.Repos {
+				if m.ctx.Repos[i].Path != res.path {
+					continue
+				}
+				if res.err == nil {
+					m.ctx.Repos[i].WorktreeCount = len(res.worktrees)
+				}
+				if i == m.ctx.ActiveRepo {
+					m.worktreeList, _ = m.worktreeList.Update(
+						worktreelist.WorktreesFetchedMsg{Worktrees: res.worktrees, Err: res.err},
+					)
+				}
+				break
+			}
+		}
+		return m, nil
 	case worktreelist.WorktreesFetchedMsg:
+		m.ctx.Loading = false
+		m.ctx.LastRefresh = time.Now()
 		m.worktreeList, _ = m.worktreeList.Update(msg)
 		if m.ctx.ActiveRepo >= 0 && m.ctx.ActiveRepo < len(m.ctx.Repos) {
 			m.ctx.Repos[m.ctx.ActiveRepo].WorktreeCount = len(msg.Worktrees)
@@ -171,6 +258,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.repoPicker = repopicker.New(home, m.ctx.Width, m.ctx.Height, paths)
 			m.view = viewRepoPicker
+			return m, nil
+		case "r":
+			if len(m.ctx.Repos) > 0 {
+				m.ctx.Loading = true
+				return m, m.fetchAllWorktrees()
+			}
+		case "R":
+			m.ctx.AutoRefresh = !m.ctx.AutoRefresh
+			if m.ctx.AutoRefresh {
+				elapsed := time.Duration(int(refreshInterval.Seconds())-m.ctx.PausedRemaining) * time.Second
+				m.ctx.LastRefresh = time.Now().Add(-elapsed)
+				return m, tea.Batch(tickCmd(), uiTickCmd())
+			}
+			if !m.ctx.LastRefresh.IsZero() {
+				elapsed := int(time.Since(m.ctx.LastRefresh).Seconds())
+				remaining := int(refreshInterval.Seconds()) - elapsed
+				if remaining < 0 {
+					remaining = 0
+				}
+				m.ctx.PausedRemaining = remaining
+			}
 			return m, nil
 		case "d":
 			if len(m.ctx.Repos) > 0 {

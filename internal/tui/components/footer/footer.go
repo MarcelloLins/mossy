@@ -1,7 +1,9 @@
 package footer
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -43,6 +45,11 @@ var (
 			Background(lipgloss.Color("236")).
 			Bold(true).
 			Padding(0, 2)
+
+	syncStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")).
+			Background(lipgloss.Color("236")).
+			Padding(0, 2)
 )
 
 type Model struct {
@@ -66,14 +73,38 @@ func (m Model) View() string {
 
 	// Left: view switcher
 	bell := bellStyle.Render("󰂚")
-	prs := activeViewStyle.Render("⎔ WIP1")
+	var autoRefresh string
+	if m.ctx.AutoRefresh {
+		base := activeViewStyle
+		keyStyle := base.Underline(true)
+		countdown := ""
+		if !m.ctx.LastRefresh.IsZero() {
+			elapsed := int(time.Since(m.ctx.LastRefresh).Seconds())
+			remaining := 30 - elapsed
+			if remaining < 0 {
+				remaining = 0
+			}
+			countdown = base.UnsetPadding().Render(fmt.Sprintf(" (%ds)", remaining))
+		}
+		autoRefresh = base.Render("⟳ Auto") + keyStyle.UnsetPadding().Render("R") + base.UnsetPadding().Render("efresh") + countdown
+	} else {
+		base := inactiveViewStyle
+		keyStyle := base.Underline(true)
+		countdown := ""
+		if m.ctx.PausedRemaining > 0 {
+			countdown = base.UnsetPadding().Render(fmt.Sprintf(" (%ds)", m.ctx.PausedRemaining))
+		}
+		autoRefresh = base.Render("⟳ Auto") + keyStyle.UnsetPadding().Render("R") + base.UnsetPadding().Render("efresh") + countdown
+	}
 	issues := inactiveViewStyle.Render("⋮ WIP2")
-	left := bell + sep + prs + sep + issues
+	left := bell + sep + autoRefresh + sep + issues
 
 	// Center: message area
 	var mid string
 	if m.ctx.Message != "" {
 		mid = messageStyle.Render(m.ctx.Message)
+	} else if m.ctx.Loading {
+		mid = syncStyle.Render("⟳ syncing")
 	}
 
 	// Right: donate, help
