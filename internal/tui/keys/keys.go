@@ -9,6 +9,7 @@ type KeyMap struct {
 	Right       key.Binding
 	AddRepo     key.Binding
 	DeleteRepo  key.Binding
+	NewWorktree key.Binding
 	Refresh     key.Binding
 	AutoRefresh key.Binding
 	Help        key.Binding
@@ -40,6 +41,10 @@ var Keys = KeyMap{
 		key.WithKeys("d"),
 		key.WithHelp("d", "remove repo"),
 	),
+	NewWorktree: key.NewBinding(
+		key.WithKeys("n"),
+		key.WithHelp("n", "new worktree"),
+	),
 	Refresh: key.NewBinding(
 		key.WithKeys("r"),
 		key.WithHelp("r", "refresh"),
@@ -65,7 +70,7 @@ func (k KeyMap) ShortHelp() []key.Binding {
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Left, k.Right},
-		{k.AddRepo, k.DeleteRepo, k.Refresh, k.AutoRefresh},
+		{k.AddRepo, k.DeleteRepo, k.NewWorktree, k.Refresh, k.AutoRefresh},
 		{k.Help, k.Quit},
 	}
 }

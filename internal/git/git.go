@@ -2,6 +2,7 @@ package git
 
 import (
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -35,6 +36,13 @@ func ListWorktrees(repoPath string) ([]Worktree, error) {
 		}
 	}
 	return all, nil
+}
+
+func AddWorktree(repoPath, name, branch string) error {
+	wtPath := filepath.Join(filepath.Dir(repoPath), name)
+	cmd := exec.Command("git", "worktree", "add", wtPath, "-b", branch)
+	cmd.Dir = repoPath
+	return cmd.Run()
 }
 
 func detectDefaultBranch(repoPath string) string {

@@ -33,10 +33,15 @@ mossy
 | Key | Action |
 |---|---|
 | `a` | Add a repository |
+| `d` | Remove a repository |
+| `n` | New worktree |
 | `h` / `l` | Switch tabs |
 | `j` / `k` | Navigate lists |
+| `r` | Refresh |
+| `R` | Toggle auto-refresh |
 | `enter` | Select / open directory |
 | `esc` | Cancel |
+| `?` | Help |
 | `q` | Quit |
 | `ctrl+c` | Force quit |
 

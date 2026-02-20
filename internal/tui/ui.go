@@ -3,8 +3,10 @@ package tui
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcellolins/mossy/internal/config"
@@ -12,6 +14,7 @@ import (
 	"github.com/marcellolins/mossy/internal/tui/components/footer"
 	"github.com/marcellolins/mossy/internal/tui/components/repopicker"
 	"github.com/marcellolins/mossy/internal/tui/components/tabs"
+	"github.com/marcellolins/mossy/internal/tui/components/worktreecreate"
 	"github.com/marcellolins/mossy/internal/tui/components/worktreelist"
 	"github.com/marcellolins/mossy/internal/tui/context"
 )
@@ -23,6 +26,11 @@ type configLoadedMsg struct {
 
 type tickMsg time.Time
 type uiTickMsg time.Time
+
+type worktreeCreatedMsg struct {
+	path string
+	err  error
+}
 
 type repoWorktreeResult struct {
 	path      string
@@ -54,15 +62,17 @@ const (
 	viewNormal viewState = iota
 	viewRepoPicker
 	viewConfirmDelete
+	viewCreateWorktree
 )
 
 type Model struct {
-	ctx          *context.ProgramContext
-	tabs         tabs.Model
-	footer       footer.Model
-	repoPicker   repopicker.Model
-	worktreeList worktreelist.Model
-	view         viewState
+	ctx            *context.ProgramContext
+	tabs           tabs.Model
+	footer         footer.Model
+	repoPicker     repopicker.Model
+	worktreeCreate worktreecreate.Model
+	worktreeList   worktreelist.Model
+	view           viewState
 }
 
 func New() Model {
@@ -149,7 +159,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ctx.LastRefresh = time.Now()
 		return m, tea.Batch(m.fetchActiveWorktrees(), tickCmd(), uiTickCmd())
 	case uiTickMsg:
-		if m.ctx.AutoRefresh {
+		if m.ctx.Message != "" && !m.ctx.MessageExpiry.IsZero() && time.Now().After(m.ctx.MessageExpiry) {
+			m.ctx.Message = ""
+			m.ctx.MessageExpiry = time.Time{}
+		}
+		if m.ctx.AutoRefresh || (m.ctx.Message != "" && !m.ctx.MessageExpiry.IsZero()) {
 			return m, uiTickCmd()
 		}
 		return m, nil
@@ -185,11 +199,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ctx.Repos[m.ctx.ActiveRepo].WorktreeCount = len(msg.Worktrees)
 		}
 		return m, nil
+	case worktreeCreatedMsg:
+		m.ctx.Loading = false
+		if msg.err != nil {
+			m.ctx.Message = fmt.Sprintf("Error: %v", msg.err)
+		} else {
+			m.ctx.Message = fmt.Sprintf("Worktree created at %s", msg.path)
+		}
+		m.ctx.MessageExpiry = time.Now().Add(5 * time.Second)
+		m.view = viewNormal
+		return m, tea.Batch(m.fetchActiveWorktrees(), uiTickCmd())
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
 		m.ctx.Height = msg.Height
 		if m.view == viewRepoPicker {
 			m.repoPicker.SetSize(msg.Width, msg.Height)
+		}
+		if m.view == viewCreateWorktree {
+			m.worktreeCreate.SetSize(msg.Width, msg.Height)
 		}
 		return m, nil
 	case tea.KeyMsg:
@@ -252,6 +279,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if m.view == viewCreateWorktree {
+		switch msg := msg.(type) {
+		case worktreecreate.WorktreeCreateRequestMsg:
+			repoPath := m.ctx.Repos[m.ctx.ActiveRepo].Path
+			name := msg.Name
+			branch := msg.Branch
+			m.ctx.Loading = true
+			m.ctx.Message = "Creating worktree…"
+			return m, func() tea.Msg {
+				wtPath := filepath.Join(filepath.Dir(repoPath), name)
+				err := git.AddWorktree(repoPath, name, branch)
+				return worktreeCreatedMsg{path: wtPath, err: err}
+			}
+		case worktreecreate.WorktreeCreateCancelledMsg:
+			m.view = viewNormal
+			return m, nil
+		default:
+			var cmd tea.Cmd
+			m.worktreeCreate, cmd = m.worktreeCreate.Update(msg)
+			return m, cmd
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -269,6 +319,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.repoPicker = repopicker.New(home, m.ctx.Width, m.ctx.Height, paths)
 			m.view = viewRepoPicker
 			return m, nil
+		case "n":
+			if len(m.ctx.Repos) > 0 {
+				m.worktreeCreate = worktreecreate.New(m.ctx.Width, m.ctx.Height)
+				m.view = viewCreateWorktree
+				return m, textinput.Blink
+			}
 		case "r":
 			if len(m.ctx.Repos) > 0 {
 				m.ctx.Loading = true
@@ -322,6 +378,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() string {
 	if m.view == viewRepoPicker {
 		return m.repoPicker.View()
+	}
+
+	if m.view == viewCreateWorktree {
+		return m.worktreeCreate.View()
 	}
 
 	top := m.tabs.View()

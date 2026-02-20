@@ -14,6 +14,7 @@ type ProgramContext struct {
 	Repos           []Repository
 	ActiveRepo      int
 	Message         string
+	MessageExpiry   time.Time
 	Loading         bool
 	AutoRefresh     bool
 	LastRefresh     time.Time

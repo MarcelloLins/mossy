@@ -115,14 +115,17 @@ func (m Model) View(width, height int) string {
 	}
 
 	if len(m.worktrees) == 0 {
-		msg := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#8FBC8F")).
-			Align(lipgloss.Center).
-			Render("No worktrees found\n\n" +
-				lipgloss.NewStyle().
-					Foreground(lipgloss.Color("245")).
-					Render("This repository has no additional worktrees.\n"+
-						"Use 'git worktree add' from the command line to create one."))
+		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+		keyStyle := dimStyle.Underline(true)
+		pressLine := dimStyle.Render("Press ") + keyStyle.Render("n") + dimStyle.Render(" to create a new worktree.")
+		msg := lipgloss.JoinVertical(lipgloss.Center,
+			lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#8FBC8F")).
+				Render("No worktrees found"),
+			"",
+			dimStyle.Render("This repository has no additional worktrees."),
+			pressLine,
+		)
 		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, msg)
 	}
 
