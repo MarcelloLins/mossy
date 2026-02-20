@@ -61,6 +61,10 @@ var (
 	fileStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("252"))
 
+	agentStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#B48EAD")).
+			Bold(true)
+
 	emptyStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245"))
 )
@@ -156,6 +160,15 @@ func (m Model) View(width, height int) string {
 				tagParts = append(tagParts, tagStyle.Render("🏷 "+t))
 			}
 			lines = append(lines, strings.Join(tagParts, " "))
+		}
+
+		// AI co-authors
+		if len(c.AIAgents) > 0 {
+			var agentParts []string
+			for _, a := range c.AIAgents {
+				agentParts = append(agentParts, agentStyle.Render("🤖 "+a))
+			}
+			lines = append(lines, strings.Join(agentParts, "  "))
 		}
 
 		// Commit hash

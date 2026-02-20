@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
+
+var aiAgentPattern = regexp.MustCompile(`(?im)Co-authored-by:\s+(Copilot|Goose|Claude|Cursor|Amp)\b`)
 
 type Worktree struct {
 	Path      string
@@ -28,6 +31,7 @@ type Commit struct {
 	Files     []string
 	Additions int
 	Deletions int
+	AIAgents  []string
 }
 
 func ListWorktrees(repoPath string) ([]Worktree, error) {
@@ -163,6 +167,17 @@ func enrichCommits(repoPath, branch string, commits []Commit) {
 					commits[i].Deletions += d
 				}
 				commits[i].Files = append(commits[i].Files, fields[2])
+			}
+		}
+
+		// AI co-authors
+		matches := aiAgentPattern.FindAllStringSubmatch(commits[i].Body, -1)
+		seen := make(map[string]bool)
+		for _, m := range matches {
+			name := m[1]
+			if !seen[name] {
+				seen[name] = true
+				commits[i].AIAgents = append(commits[i].AIAgents, name)
 			}
 		}
 	}
