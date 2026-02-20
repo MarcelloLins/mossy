@@ -198,9 +198,12 @@ func (m Model) View(width, height int) string {
 	}
 
 	s := b.String()
-	contentHeight := lipgloss.Height(s)
-	if pad := height - contentHeight; pad > 0 {
-		s += strings.Repeat("\n", pad)
+	lines := strings.Split(s, "\n")
+	if len(lines) > height {
+		lines = lines[:height]
 	}
-	return s
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines, "\n")
 }

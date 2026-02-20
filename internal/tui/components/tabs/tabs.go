@@ -58,11 +58,11 @@ func New(ctx *context.ProgramContext) Model {
 }
 
 func (m Model) tabLabel(i int) string {
-	name := m.ctx.Repos[i].Name
-	if i == m.ctx.ActiveRepo && m.ctx.WorktreeCount > 0 {
-		return fmt.Sprintf("%s %s", name, countStyle.Render(fmt.Sprintf("(%d)", m.ctx.WorktreeCount)))
+	repo := m.ctx.Repos[i]
+	if repo.WorktreeCount > 0 {
+		return fmt.Sprintf("%s %s", repo.Name, countStyle.Render(fmt.Sprintf("(%d)", repo.WorktreeCount)))
 	}
-	return name
+	return repo.Name
 }
 
 func (m Model) Init() tea.Cmd {

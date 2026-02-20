@@ -94,7 +94,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.fetchActiveWorktrees()
 	case worktreelist.WorktreesFetchedMsg:
 		m.worktreeList, _ = m.worktreeList.Update(msg)
-		m.ctx.WorktreeCount = len(msg.Worktrees)
+		if m.ctx.ActiveRepo >= 0 && m.ctx.ActiveRepo < len(m.ctx.Repos) {
+			m.ctx.Repos[m.ctx.ActiveRepo].WorktreeCount = len(msg.Worktrees)
+		}
 		return m, nil
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
@@ -228,5 +230,5 @@ func (m Model) View() string {
 		content = m.worktreeList.View(m.ctx.Width, mid)
 	}
 
-	return top + "\n" + content + foot
+	return top + "\n" + content + "\n" + foot
 }
