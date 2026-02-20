@@ -195,5 +195,19 @@ func (m Model) View() string {
 		mid = 0
 	}
 
-	return top + "\n" + strings.Repeat("\n", mid) + foot
+	var content string
+	if len(m.ctx.Repos) == 0 {
+		welcome := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#8FBC8F")).
+			Align(lipgloss.Center).
+			Render("🌿\n\nWelcome to mossy\n\n" +
+				lipgloss.NewStyle().
+					Foreground(lipgloss.Color("245")).
+					Render("Press 'a' to add your first repository"))
+		content = lipgloss.Place(m.ctx.Width, mid, lipgloss.Center, lipgloss.Center, welcome)
+	} else {
+		content = strings.Repeat("\n", mid)
+	}
+
+	return top + "\n" + content + foot
 }
