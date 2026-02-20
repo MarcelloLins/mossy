@@ -34,6 +34,12 @@ var (
 	hashStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
 
+	addStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("2"))
+
+	delStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("1"))
+
 	emptyStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245")).
 			Align(lipgloss.Center)
@@ -122,25 +128,27 @@ func (m Model) View(width, height int) string {
 
 	var b strings.Builder
 
-	// Column layout: name(grow) + commit(fixed) + branch(fixed)
+	// Column layout: name(grow) + lines(fixed) + commit(fixed) + branch(fixed)
 	const (
+		linesWidth  = 16
 		commitWidth = 9
 		padWidth    = 4 // outer padding from rowStyle (2 each side)
 	)
-	// Branch column gets ~40% of total width, capped at 50
-	branchColWidth := (width - padWidth) * 2 / 5
-	if branchColWidth > 50 {
-		branchColWidth = 50
+	// Branch column gets ~35% of total width, capped at 40
+	branchColWidth := (width - padWidth) * 7 / 20
+	if branchColWidth > 40 {
+		branchColWidth = 40
 	}
 	if branchColWidth < 10 {
 		branchColWidth = 10
 	}
-	nameWidth := width - padWidth - commitWidth - branchColWidth
+	nameWidth := width - padWidth - linesWidth - commitWidth - branchColWidth
 
 	cellStyle := lipgloss.NewStyle()
 
 	colHeader := rowStyle.Render(
 		columnHeaderStyle.Width(nameWidth).MaxWidth(nameWidth).Render("\uf413 Worktree") +
+			columnHeaderStyle.Width(linesWidth).MaxWidth(linesWidth).Render("\uf457") +
 			columnHeaderStyle.Width(commitWidth).MaxWidth(commitWidth).Render("Commit") +
 			columnHeaderStyle.Width(branchColWidth).MaxWidth(branchColWidth).Render("\uf418 Branch"))
 	b.WriteString(colHeader)
@@ -155,18 +163,29 @@ func (m Model) View(width, height int) string {
 		nStyle := nameStyle
 		hStyle := hashStyle
 		bStyle := branchStyle
+		aStyle := addStyle
+		dStyle := delStyle
 		cStyle := cellStyle
 		rStyle := rowStyle
 		if selected {
 			nStyle = nStyle.Background(bg)
 			hStyle = hStyle.Background(bg)
 			bStyle = bStyle.Background(bg)
+			aStyle = aStyle.Background(bg)
+			dStyle = dStyle.Background(bg)
 			cStyle = cStyle.Background(bg)
 			rStyle = selectedRowStyle
 		}
 
 		wtName := filepath.Base(wt.Path)
+		var linesCell string
+		if wt.Additions > 0 || wt.Deletions > 0 {
+			linesCell = aStyle.Render(fmt.Sprintf("+%d", wt.Additions)) +
+				cStyle.Render(" ") +
+				dStyle.Render(fmt.Sprintf("-%d", wt.Deletions))
+		}
 		line := cStyle.Width(nameWidth).MaxWidth(nameWidth).Render(nStyle.Render(wtName)) +
+			cStyle.Width(linesWidth).MaxWidth(linesWidth).Render(linesCell) +
 			cStyle.Width(commitWidth).MaxWidth(commitWidth).Render(hStyle.Render(wt.HEAD[:7])) +
 			cStyle.Width(branchColWidth).MaxWidth(branchColWidth).Render(bStyle.Render(wt.Branch))
 
