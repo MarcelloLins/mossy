@@ -50,6 +50,7 @@ type Model struct {
 	focus       int
 	width       int
 	height      int
+	Creating    bool
 }
 
 func New(width, height int) Model {
@@ -95,6 +96,9 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	if m.Creating {
+		return m, nil
+	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -167,6 +171,17 @@ func (m Model) View() string {
 
 	b.WriteString(titleStyle.Render("New Worktree"))
 	b.WriteString("\n\n")
+
+	if m.Creating {
+		creatingStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFBD2E")).
+			Bold(true).
+			Padding(0, 1)
+		b.WriteString(creatingStyle.Render("⟳ Creating worktree…"))
+
+		modal := modalStyle.Render(b.String())
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
+	}
 
 	b.WriteString(labelStyle.Render("Worktree name"))
 	b.WriteString("\n")

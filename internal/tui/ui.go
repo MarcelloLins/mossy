@@ -285,8 +285,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			repoPath := m.ctx.Repos[m.ctx.ActiveRepo].Path
 			name := msg.Name
 			branch := msg.Branch
-			m.ctx.Loading = true
-			m.ctx.Message = "Creating worktree…"
+			m.worktreeCreate.Creating = true
 			return m, func() tea.Msg {
 				wtPath := filepath.Join(filepath.Dir(repoPath), name)
 				err := git.AddWorktree(repoPath, name, branch)
