@@ -18,4 +18,5 @@ type ProgramContext struct {
 	AutoRefresh     bool
 	LastRefresh     time.Time
 	PausedRemaining int
+	ShowHelp        bool
 }

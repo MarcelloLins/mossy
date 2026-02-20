@@ -196,6 +196,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
+		if msg.String() == "?" {
+			m.ctx.ShowHelp = !m.ctx.ShowHelp
+			return m, nil
+		}
+		if m.ctx.ShowHelp {
+			if msg.String() == "esc" {
+				m.ctx.ShowHelp = false
+			}
+			return m, nil
+		}
 	}
 
 	if m.view == viewConfirmDelete {

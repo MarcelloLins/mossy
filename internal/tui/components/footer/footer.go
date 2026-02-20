@@ -5,9 +5,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcellolins/mossy/internal/tui/context"
+	"github.com/marcellolins/mossy/internal/tui/keys"
 )
 
 var (
@@ -53,11 +55,21 @@ var (
 )
 
 type Model struct {
-	ctx *context.ProgramContext
+	ctx  *context.ProgramContext
+	help help.Model
 }
 
 func New(ctx *context.ProgramContext) Model {
-	return Model{ctx: ctx}
+	h := help.New()
+	h.ShowAll = true
+	h.Styles.FullKey = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#8FBC8F")).
+		Bold(true)
+	h.Styles.FullDesc = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245"))
+	h.Styles.FullSeparator = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240"))
+	return Model{ctx: ctx, help: h}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -109,8 +121,8 @@ func (m Model) View() string {
 
 	// Right: donate, help
 	donate := rightSectionStyle.Render("♡ donate")
-	help := rightSectionStyle.Render("? help")
-	right := donate + sep + help
+	helpBadge := rightSectionStyle.Render("? help")
+	right := donate + sep + helpBadge
 
 	leftWidth := lipgloss.Width(left)
 	midWidth := lipgloss.Width(mid)
@@ -122,9 +134,17 @@ func (m Model) View() string {
 	leftGap := totalGap / 2
 	rightGap := totalGap - leftGap
 
-	return left +
+	bar := left +
 		barStyle.Render(strings.Repeat(" ", leftGap)) +
 		mid +
 		barStyle.Render(strings.Repeat(" ", rightGap)) +
 		right
+
+	if m.ctx.ShowHelp {
+		m.help.Width = m.ctx.Width
+		helpView := m.help.View(keys.Keys)
+		return bar + "\n" + helpView
+	}
+
+	return bar
 }
