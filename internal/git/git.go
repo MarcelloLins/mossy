@@ -17,6 +17,19 @@ type Worktree struct {
 	Deletions int
 }
 
+type Commit struct {
+	Hash      string
+	Subject   string
+	Body      string
+	Author    string
+	Date      string
+	Pushed    bool
+	Tags      []string
+	Files     []string
+	Additions int
+	Deletions int
+}
+
 func ListWorktrees(repoPath string) ([]Worktree, error) {
 	cmd := exec.Command("git", "worktree", "list", "--porcelain")
 	cmd.Dir = repoPath
@@ -48,6 +61,111 @@ func AddWorktree(repoPath, name, branch string) error {
 		return parseWorktreeError(string(out), name, branch)
 	}
 	return nil
+}
+
+func ListCommits(repoPath, branch string) ([]Commit, error) {
+	defaultBranch := detectDefaultBranch(repoPath)
+	revRange := defaultBranch + ".." + branch
+	// Use %x00 at the end as record separator; %x01 separates fields within.
+	// Format: hash\x01subject\x01author\x01date\x01body\x00
+	cmd := exec.Command("git", "log", revRange,
+		"--format=%H%x01%s%x01%an%x01%ar%x01%b%x00", "--")
+	cmd.Dir = repoPath
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	text := strings.TrimSpace(string(out))
+	if text == "" {
+		return nil, nil
+	}
+	records := strings.Split(text, "\x00")
+	var commits []Commit
+	for _, rec := range records {
+		rec = strings.TrimSpace(rec)
+		if rec == "" {
+			continue
+		}
+		fields := strings.SplitN(rec, "\x01", 5)
+		if len(fields) < 4 {
+			continue
+		}
+		c := Commit{
+			Hash:    fields[0],
+			Subject: fields[1],
+			Author:  fields[2],
+			Date:    fields[3],
+		}
+		if len(fields) == 5 {
+			c.Body = strings.TrimSpace(fields[4])
+		}
+		commits = append(commits, c)
+	}
+	enrichCommits(repoPath, branch, commits)
+	return commits, nil
+}
+
+func enrichCommits(repoPath, branch string, commits []Commit) {
+	// Determine which commits are pushed by finding the remote tip.
+	remoteTip := ""
+	cmd := exec.Command("git", "rev-parse", "--verify", "origin/"+branch)
+	cmd.Dir = repoPath
+	if out, err := cmd.Output(); err == nil {
+		remoteTip = strings.TrimSpace(string(out))
+	}
+
+	// If we have a remote tip, all commits that are ancestors of it are pushed.
+	pushedSet := make(map[string]bool)
+	if remoteTip != "" {
+		// Get the set of commits in default..branch that are also in default..origin/branch
+		defaultBranch := detectDefaultBranch(repoPath)
+		cmd := exec.Command("git", "log", defaultBranch+"..origin/"+branch, "--format=%H")
+		cmd.Dir = repoPath
+		if out, err := cmd.Output(); err == nil {
+			for _, h := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+				if h != "" {
+					pushedSet[h] = true
+				}
+			}
+		}
+	}
+
+	for i := range commits {
+		commits[i].Pushed = pushedSet[commits[i].Hash]
+
+		// Tags
+		cmd := exec.Command("git", "tag", "--points-at", commits[i].Hash)
+		cmd.Dir = repoPath
+		if out, err := cmd.Output(); err == nil {
+			for _, t := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+				if t != "" {
+					commits[i].Tags = append(commits[i].Tags, t)
+				}
+			}
+		}
+
+		// Diff stat and file list
+		cmd = exec.Command("git", "diff-tree", "--no-commit-id", "--numstat", "-r", commits[i].Hash)
+		cmd.Dir = repoPath
+		if out, err := cmd.Output(); err == nil {
+			for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+				if line == "" {
+					continue
+				}
+				fields := strings.Fields(line)
+				if len(fields) < 3 {
+					continue
+				}
+				if a, err := strconv.Atoi(fields[0]); err == nil {
+					commits[i].Additions += a
+				}
+				if d, err := strconv.Atoi(fields[1]); err == nil {
+					commits[i].Deletions += d
+				}
+				commits[i].Files = append(commits[i].Files, fields[2])
+			}
+		}
+	}
 }
 
 func parseWorktreeError(output, name, branch string) error {

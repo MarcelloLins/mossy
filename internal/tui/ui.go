@@ -39,6 +39,11 @@ type repoWorktreeResult struct {
 	err       error
 }
 
+type commitsFetchedMsg struct {
+	commits []git.Commit
+	err     error
+}
+
 type allWorktreesFetchedMsg struct {
 	results []repoWorktreeResult
 }
@@ -107,6 +112,22 @@ func (m Model) fetchActiveWorktrees() tea.Cmd {
 		return nil
 	}
 	return worktreelist.FetchWorktrees(m.ctx.Repos[m.ctx.ActiveRepo].Path)
+}
+
+func (m Model) fetchCommits() tea.Cmd {
+	wt, ok := m.worktreeList.SelectedWorktree()
+	if !ok || m.ctx.ActiveRepo < 0 || m.ctx.ActiveRepo >= len(m.ctx.Repos) {
+		return nil
+	}
+	repoPath := m.ctx.Repos[m.ctx.ActiveRepo].Path
+	branch := wt.Branch
+	if branch == "" || branch == "(detached)" {
+		return nil
+	}
+	return func() tea.Msg {
+		commits, err := git.ListCommits(repoPath, branch)
+		return commitsFetchedMsg{commits: commits, err: err}
+	}
 }
 
 func (m Model) saveRepos() tea.Cmd {
@@ -200,6 +221,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.worktreeList, _ = m.worktreeList.Update(msg)
 		if m.ctx.ActiveRepo >= 0 && m.ctx.ActiveRepo < len(m.ctx.Repos) {
 			m.ctx.Repos[m.ctx.ActiveRepo].WorktreeCount = len(msg.Worktrees)
+		}
+		return m, m.fetchCommits()
+	case commitsFetchedMsg:
+		if msg.err == nil {
+			m.sidePanel.SetCommits(msg.commits)
 		}
 		return m, nil
 	case worktreeCreatedMsg:
@@ -370,7 +396,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "j", "down", "k", "up":
 			var cmd tea.Cmd
 			m.worktreeList, cmd = m.worktreeList.Update(msg)
-			return m, cmd
+			return m, tea.Batch(cmd, m.fetchCommits())
+		case "[":
+			m.sidePanel.PrevCommit()
+			return m, nil
+		case "]":
+			m.sidePanel.NextCommit()
+			return m, nil
 		}
 	}
 
