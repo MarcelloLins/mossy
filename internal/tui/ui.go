@@ -17,6 +17,7 @@ import (
 	"github.com/marcellolins/mossy/internal/tui/components/tabs"
 	"github.com/marcellolins/mossy/internal/tui/components/worktreecreate"
 	"github.com/marcellolins/mossy/internal/tui/components/worktreelist"
+	"github.com/marcellolins/mossy/internal/tui/components/worktreeremove"
 	"github.com/marcellolins/mossy/internal/tui/context"
 )
 
@@ -30,6 +31,11 @@ type uiTickMsg time.Time
 
 type worktreeCreatedMsg struct {
 	path string
+	err  error
+}
+
+type worktreeRemovedMsg struct {
+	name string
 	err  error
 }
 
@@ -69,6 +75,7 @@ const (
 	viewRepoPicker
 	viewConfirmDelete
 	viewCreateWorktree
+	viewRemoveWorktree
 )
 
 type Model struct {
@@ -77,6 +84,7 @@ type Model struct {
 	footer         footer.Model
 	repoPicker     repopicker.Model
 	worktreeCreate worktreecreate.Model
+	worktreeRemove worktreeremove.Model
 	worktreeList   worktreelist.Model
 	sidePanel      sidepanel.Model
 	view           viewState
@@ -238,6 +246,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ctx.MessageExpiry = time.Now().Add(5 * time.Second)
 		m.view = viewNormal
 		return m, tea.Batch(m.fetchActiveWorktrees(), uiTickCmd())
+	case worktreeRemovedMsg:
+		m.ctx.Loading = false
+		if msg.err != nil {
+			m.ctx.Message = fmt.Sprintf("Error: %v", msg.err)
+		} else {
+			m.ctx.Message = fmt.Sprintf("Worktree %q removed", msg.name)
+		}
+		m.ctx.MessageExpiry = time.Now().Add(5 * time.Second)
+		m.view = viewNormal
+		return m, tea.Batch(m.fetchActiveWorktrees(), uiTickCmd())
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
 		m.ctx.Height = msg.Height
@@ -246,6 +264,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.view == viewCreateWorktree {
 			m.worktreeCreate.SetSize(msg.Width, msg.Height)
+		}
+		if m.view == viewRemoveWorktree {
+			m.worktreeRemove.SetSize(msg.Width, msg.Height)
 		}
 		return m, nil
 	case tea.KeyMsg:
@@ -330,6 +351,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if m.view == viewRemoveWorktree {
+		switch msg := msg.(type) {
+		case worktreeremove.WorktreeRemoveRequestMsg:
+			repoPath := m.ctx.Repos[m.ctx.ActiveRepo].Path
+			wtPath := msg.WtPath
+			branch := msg.Branch
+			deleteBranch := msg.DeleteBranch
+			wtName := filepath.Base(wtPath)
+			m.worktreeRemove.Removing = true
+			return m, func() tea.Msg {
+				err := git.RemoveWorktree(repoPath, wtPath, branch, deleteBranch)
+				return worktreeRemovedMsg{name: wtName, err: err}
+			}
+		case worktreeremove.WorktreeRemoveCancelledMsg:
+			m.view = viewNormal
+			return m, nil
+		default:
+			var cmd tea.Cmd
+			m.worktreeRemove, cmd = m.worktreeRemove.Update(msg)
+			return m, cmd
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -352,6 +396,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.worktreeCreate = worktreecreate.New(m.ctx.Width, m.ctx.Height)
 				m.view = viewCreateWorktree
 				return m, textinput.Blink
+			}
+		case "x":
+			if wt, ok := m.worktreeList.SelectedWorktree(); ok {
+				m.worktreeRemove = worktreeremove.New(filepath.Base(wt.Path), wt.Path, wt.Branch, m.ctx.Width, m.ctx.Height)
+				m.view = viewRemoveWorktree
+				return m, nil
 			}
 		case "r":
 			if len(m.ctx.Repos) > 0 {
@@ -416,6 +466,10 @@ func (m Model) View() string {
 
 	if m.view == viewCreateWorktree {
 		return m.worktreeCreate.View()
+	}
+
+	if m.view == viewRemoveWorktree {
+		return m.worktreeRemove.View()
 	}
 
 	top := m.tabs.View()

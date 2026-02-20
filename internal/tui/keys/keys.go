@@ -3,19 +3,20 @@ package keys
 import "github.com/charmbracelet/bubbles/key"
 
 type KeyMap struct {
-	Up          key.Binding
-	Down        key.Binding
-	Left        key.Binding
-	Right       key.Binding
-	AddRepo     key.Binding
-	DeleteRepo  key.Binding
-	NewWorktree key.Binding
-	PrevCommit  key.Binding
-	NextCommit  key.Binding
-	Refresh     key.Binding
-	AutoRefresh key.Binding
-	Help        key.Binding
-	Quit        key.Binding
+	Up             key.Binding
+	Down           key.Binding
+	Left           key.Binding
+	Right          key.Binding
+	AddRepo        key.Binding
+	DeleteRepo     key.Binding
+	NewWorktree    key.Binding
+	RemoveWorktree key.Binding
+	PrevCommit     key.Binding
+	NextCommit     key.Binding
+	Refresh        key.Binding
+	AutoRefresh    key.Binding
+	Help           key.Binding
+	Quit           key.Binding
 }
 
 var Keys = KeyMap{
@@ -46,6 +47,10 @@ var Keys = KeyMap{
 	NewWorktree: key.NewBinding(
 		key.WithKeys("n"),
 		key.WithHelp("n", "new worktree"),
+	),
+	RemoveWorktree: key.NewBinding(
+		key.WithKeys("x"),
+		key.WithHelp("x", "remove worktree"),
 	),
 	PrevCommit: key.NewBinding(
 		key.WithKeys("["),
@@ -80,7 +85,7 @@ func (k KeyMap) ShortHelp() []key.Binding {
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Left, k.Right},
-		{k.AddRepo, k.DeleteRepo, k.NewWorktree},
+		{k.AddRepo, k.DeleteRepo, k.NewWorktree, k.RemoveWorktree},
 		{k.PrevCommit, k.NextCommit, k.Refresh, k.AutoRefresh},
 		{k.Help, k.Quit},
 	}

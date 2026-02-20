@@ -108,8 +108,9 @@ func (m Model) View() string {
 		}
 		autoRefresh = base.Render("⟳ Auto") + keyStyle.UnsetPadding().Render("R") + base.UnsetPadding().Render("efresh") + countdown
 	}
-	issues := inactiveViewStyle.Render("⋮ WIP2")
-	left := bell + sep + autoRefresh + sep + issues
+	newWt := inactiveViewStyle.Render("⋮ ") + inactiveViewStyle.Underline(true).UnsetPadding().Render("N") + inactiveViewStyle.UnsetPadding().Render("ew Worktree")
+	removeWt := inactiveViewStyle.Render("⋮ ") + inactiveViewStyle.UnsetPadding().Render("Remove Worktree (") + inactiveViewStyle.Underline(true).UnsetPadding().Render("x") + inactiveViewStyle.UnsetPadding().Render(")")
+	left := bell + sep + autoRefresh + sep + newWt + sep + removeWt
 
 	// Center: message area
 	var mid string

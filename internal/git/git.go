@@ -67,6 +67,24 @@ func AddWorktree(repoPath, name, branch string) error {
 	return nil
 }
 
+func RemoveWorktree(repoPath, wtPath, branch string, deleteBranch bool) error {
+	cmd := exec.Command("git", "worktree", "remove", wtPath)
+	cmd.Dir = repoPath
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	if deleteBranch && branch != "" && branch != "(detached)" {
+		cmd = exec.Command("git", "branch", "-D", branch)
+		cmd.Dir = repoPath
+		out, err = cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("worktree removed but branch deletion failed: %s", strings.TrimSpace(string(out)))
+		}
+	}
+	return nil
+}
+
 func ListCommits(repoPath, branch string) ([]Commit, error) {
 	defaultBranch := detectDefaultBranch(repoPath)
 	revRange := defaultBranch + ".." + branch

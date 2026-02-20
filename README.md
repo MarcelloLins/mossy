@@ -35,6 +35,7 @@ mossy
 | `a` | Add a repository |
 | `d` | Remove a repository |
 | `n` | New worktree |
+| `x` | Remove worktree |
 | `[` / `]` | Prev / next commit |
 | `h` / `l` | Switch tabs |
 | `j` / `k` | Navigate lists |
