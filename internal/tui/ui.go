@@ -13,6 +13,7 @@ import (
 	"github.com/marcellolins/mossy/internal/git"
 	"github.com/marcellolins/mossy/internal/tui/components/footer"
 	"github.com/marcellolins/mossy/internal/tui/components/repopicker"
+	"github.com/marcellolins/mossy/internal/tui/components/sidepanel"
 	"github.com/marcellolins/mossy/internal/tui/components/tabs"
 	"github.com/marcellolins/mossy/internal/tui/components/worktreecreate"
 	"github.com/marcellolins/mossy/internal/tui/components/worktreelist"
@@ -72,6 +73,7 @@ type Model struct {
 	repoPicker     repopicker.Model
 	worktreeCreate worktreecreate.Model
 	worktreeList   worktreelist.Model
+	sidePanel      sidepanel.Model
 	view           viewState
 }
 
@@ -85,6 +87,7 @@ func New() Model {
 		tabs:         tabs.New(ctx),
 		footer:       footer.New(ctx),
 		worktreeList: worktreelist.New(ctx),
+		sidePanel:    sidepanel.New(),
 		view:         viewNormal,
 	}
 }
@@ -403,6 +406,15 @@ func (m Model) View() string {
 					Foreground(lipgloss.Color("245")).
 					Render("Press 'a' to add your first repository"))
 		content = lipgloss.Place(m.ctx.Width, mid, lipgloss.Center, lipgloss.Center, welcome)
+	} else if m.worktreeList.HasWorktrees() {
+		panelWidth := m.ctx.Width / 3
+		listWidth := m.ctx.Width - panelWidth
+		if wt, ok := m.worktreeList.SelectedWorktree(); ok {
+			m.sidePanel.SetWorktree(&wt)
+		}
+		list := m.worktreeList.View(listWidth, mid)
+		panel := m.sidePanel.View(panelWidth, mid)
+		content = lipgloss.JoinHorizontal(lipgloss.Top, list, panel)
 	} else {
 		content = m.worktreeList.View(m.ctx.Width, mid)
 	}

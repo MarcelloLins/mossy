@@ -75,6 +75,17 @@ func New(ctx *context.ProgramContext) Model {
 	return Model{ctx: ctx}
 }
 
+func (m Model) SelectedWorktree() (git.Worktree, bool) {
+	if len(m.worktrees) == 0 || m.cursor < 0 || m.cursor >= len(m.worktrees) {
+		return git.Worktree{}, false
+	}
+	return m.worktrees[m.cursor], true
+}
+
+func (m Model) HasWorktrees() bool {
+	return m.loaded && len(m.worktrees) > 0
+}
+
 func (m Model) Init() tea.Cmd {
 	return nil
 }
