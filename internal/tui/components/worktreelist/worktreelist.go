@@ -2,6 +2,7 @@ package worktreelist
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -23,11 +24,11 @@ func FetchWorktrees(repoPath string) tea.Cmd {
 }
 
 var (
-	branchStyle = lipgloss.NewStyle().
+	nameStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFFFFF")).
 			Bold(true)
 
-	pathStyle = lipgloss.NewStyle().
+	branchStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245"))
 
 	hashStyle = lipgloss.NewStyle().
@@ -121,27 +122,27 @@ func (m Model) View(width, height int) string {
 
 	var b strings.Builder
 
-	// Column layout: branch(grow) + commit(fixed) + location(fixed)
+	// Column layout: name(grow) + commit(fixed) + branch(fixed)
 	const (
 		commitWidth = 9
 		padWidth    = 4 // outer padding from rowStyle (2 each side)
 	)
-	// Location column gets ~40% of total width, capped at 50
-	locationWidth := (width - padWidth) * 2 / 5
-	if locationWidth > 50 {
-		locationWidth = 50
+	// Branch column gets ~40% of total width, capped at 50
+	branchColWidth := (width - padWidth) * 2 / 5
+	if branchColWidth > 50 {
+		branchColWidth = 50
 	}
-	if locationWidth < 10 {
-		locationWidth = 10
+	if branchColWidth < 10 {
+		branchColWidth = 10
 	}
-	branchWidth := width - padWidth - commitWidth - locationWidth
+	nameWidth := width - padWidth - commitWidth - branchColWidth
 
 	cellStyle := lipgloss.NewStyle()
 
 	colHeader := rowStyle.Render(
-		columnHeaderStyle.Width(branchWidth).MaxWidth(branchWidth).Render("\uf418 Branch") +
+		columnHeaderStyle.Width(nameWidth).MaxWidth(nameWidth).Render("\uf413 Worktree") +
 			columnHeaderStyle.Width(commitWidth).MaxWidth(commitWidth).Render("Commit") +
-			columnHeaderStyle.Width(locationWidth).MaxWidth(locationWidth).Render("Location"))
+			columnHeaderStyle.Width(branchColWidth).MaxWidth(branchColWidth).Render("\uf418 Branch"))
 	b.WriteString(colHeader)
 	b.WriteString("\n")
 
@@ -151,22 +152,23 @@ func (m Model) View(width, height int) string {
 		selected := i == m.cursor
 		bg := lipgloss.Color("236")
 
-		bStyle := branchStyle
+		nStyle := nameStyle
 		hStyle := hashStyle
-		pStyle := pathStyle
+		bStyle := branchStyle
 		cStyle := cellStyle
 		rStyle := rowStyle
 		if selected {
-			bStyle = bStyle.Background(bg)
+			nStyle = nStyle.Background(bg)
 			hStyle = hStyle.Background(bg)
-			pStyle = pStyle.Background(bg)
+			bStyle = bStyle.Background(bg)
 			cStyle = cStyle.Background(bg)
 			rStyle = selectedRowStyle
 		}
 
-		line := cStyle.Width(branchWidth).MaxWidth(branchWidth).Render(bStyle.Render(wt.Branch)) +
+		wtName := filepath.Base(wt.Path)
+		line := cStyle.Width(nameWidth).MaxWidth(nameWidth).Render(nStyle.Render(wtName)) +
 			cStyle.Width(commitWidth).MaxWidth(commitWidth).Render(hStyle.Render(wt.HEAD[:7])) +
-			cStyle.Width(locationWidth).MaxWidth(locationWidth).Render(pStyle.Render(wt.Path))
+			cStyle.Width(branchColWidth).MaxWidth(branchColWidth).Render(bStyle.Render(wt.Branch))
 
 		b.WriteString(rStyle.Render(line))
 		b.WriteString("\n")
