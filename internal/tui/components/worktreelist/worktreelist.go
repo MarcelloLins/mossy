@@ -42,6 +42,10 @@ var (
 			Foreground(lipgloss.Color("245")).
 			Align(lipgloss.Center)
 
+	columnHeaderStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#8FBC8F")).
+				Bold(true)
+
 	rowStyle = lipgloss.NewStyle().
 			Padding(0, 2)
 )
@@ -96,6 +100,13 @@ func (m Model) View(width, height int) string {
 	var b strings.Builder
 	b.WriteString(headerStyle.Render(fmt.Sprintf("Worktrees (%d)", len(m.worktrees))))
 	b.WriteString("\n\n")
+
+	colHeader := rowStyle.Render(
+		columnHeaderStyle.Render("  Branch") + "       " +
+			columnHeaderStyle.Render("Commit") + "   " +
+			columnHeaderStyle.Render("Location"))
+	b.WriteString(colHeader)
+	b.WriteString("\n")
 
 	for _, wt := range m.worktrees {
 		branch := branchStyle.Render(wt.Branch)
