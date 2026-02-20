@@ -1,6 +1,7 @@
 package tabs
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -42,6 +43,9 @@ var (
 	overflowStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245")).
 			Padding(0, 1)
+
+	countStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245"))
 )
 
 type Model struct {
@@ -51,6 +55,14 @@ type Model struct {
 
 func New(ctx *context.ProgramContext) Model {
 	return Model{ctx: ctx}
+}
+
+func (m Model) tabLabel(i int) string {
+	name := m.ctx.Repos[i].Name
+	if i == m.ctx.ActiveRepo && m.ctx.WorktreeCount > 0 {
+		return fmt.Sprintf("%s %s", name, countStyle.Render(fmt.Sprintf("(%d)", m.ctx.WorktreeCount)))
+	}
+	return name
 }
 
 func (m Model) Init() tea.Cmd {
@@ -93,9 +105,9 @@ func (m *Model) ScrollToActive() {
 		for i := m.scrollOffset; i < len(m.ctx.Repos); i++ {
 			var tab string
 			if i == m.ctx.ActiveRepo {
-				tab = activeTabStyle.Render(m.ctx.Repos[i].Name)
+				tab = activeTabStyle.Render(m.tabLabel(i))
 			} else {
-				tab = inactiveTabStyle.Render(m.ctx.Repos[i].Name)
+				tab = inactiveTabStyle.Render(m.tabLabel(i))
 			}
 			w := lipgloss.Width(tab) + sepWidth
 			remaining := budget - used - w
@@ -161,9 +173,9 @@ func (m Model) View() string {
 	for i := m.scrollOffset; i < len(m.ctx.Repos); i++ {
 		var tab string
 		if i == m.ctx.ActiveRepo {
-			tab = activeTabStyle.Render(m.ctx.Repos[i].Name)
+			tab = activeTabStyle.Render(m.tabLabel(i))
 		} else {
-			tab = inactiveTabStyle.Render(m.ctx.Repos[i].Name)
+			tab = inactiveTabStyle.Render(m.tabLabel(i))
 		}
 		w := lipgloss.Width(tab) + sepWidth
 

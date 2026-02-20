@@ -23,11 +23,6 @@ func FetchWorktrees(repoPath string) tea.Cmd {
 }
 
 var (
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#8FBC8F")).
-			Padding(0, 2)
-
 	branchStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFFFFF")).
 			Bold(true)
@@ -47,12 +42,24 @@ var (
 				Bold(true)
 
 	rowStyle = lipgloss.NewStyle().
-			Padding(0, 2)
+			Padding(0, 2).
+			PaddingTop(1)
+
+	dividerStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("238"))
+)
+
+var (
+	selectedRowStyle = lipgloss.NewStyle().
+		Padding(0, 2).
+		PaddingTop(1).
+		Background(lipgloss.Color("236"))
 )
 
 type Model struct {
 	ctx       *context.ProgramContext
 	worktrees []git.Worktree
+	cursor    int
 	err       error
 	loaded    bool
 }
@@ -70,7 +77,22 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case WorktreesFetchedMsg:
 		m.worktrees = msg.Worktrees
 		m.err = msg.Err
+		m.cursor = 0
 		m.loaded = true
+	case tea.KeyMsg:
+		if len(m.worktrees) == 0 {
+			break
+		}
+		switch msg.String() {
+		case "j", "down":
+			if m.cursor < len(m.worktrees)-1 {
+				m.cursor++
+			}
+		case "k", "up":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		}
 	}
 	return m, nil
 }
@@ -98,22 +120,60 @@ func (m Model) View(width, height int) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(headerStyle.Render(fmt.Sprintf("Worktrees (%d)", len(m.worktrees))))
-	b.WriteString("\n\n")
+
+	// Column layout: branch(grow) + commit(fixed) + location(fixed)
+	const (
+		commitWidth = 9
+		padWidth    = 4 // outer padding from rowStyle (2 each side)
+	)
+	// Location column gets ~40% of total width, capped at 50
+	locationWidth := (width - padWidth) * 2 / 5
+	if locationWidth > 50 {
+		locationWidth = 50
+	}
+	if locationWidth < 10 {
+		locationWidth = 10
+	}
+	branchWidth := width - padWidth - commitWidth - locationWidth
+
+	cellStyle := lipgloss.NewStyle()
 
 	colHeader := rowStyle.Render(
-		columnHeaderStyle.Render("  Branch") + "       " +
-			columnHeaderStyle.Render("Commit") + "   " +
-			columnHeaderStyle.Render("Location"))
+		columnHeaderStyle.Width(branchWidth).MaxWidth(branchWidth).Render("\uf418 Branch") +
+			columnHeaderStyle.Width(commitWidth).MaxWidth(commitWidth).Render("Commit") +
+			columnHeaderStyle.Width(locationWidth).MaxWidth(locationWidth).Render("Location"))
 	b.WriteString(colHeader)
 	b.WriteString("\n")
 
-	for _, wt := range m.worktrees {
-		branch := branchStyle.Render(wt.Branch)
-		hash := hashStyle.Render(wt.HEAD[:7])
-		path := pathStyle.Render(wt.Path)
-		b.WriteString(rowStyle.Render(fmt.Sprintf("  %s  %s  %s", branch, hash, path)))
+	divider := dividerStyle.Render(strings.Repeat("─", width-padWidth))
+
+	for i, wt := range m.worktrees {
+		selected := i == m.cursor
+		bg := lipgloss.Color("236")
+
+		bStyle := branchStyle
+		hStyle := hashStyle
+		pStyle := pathStyle
+		cStyle := cellStyle
+		rStyle := rowStyle
+		if selected {
+			bStyle = bStyle.Background(bg)
+			hStyle = hStyle.Background(bg)
+			pStyle = pStyle.Background(bg)
+			cStyle = cStyle.Background(bg)
+			rStyle = selectedRowStyle
+		}
+
+		line := cStyle.Width(branchWidth).MaxWidth(branchWidth).Render(bStyle.Render(wt.Branch)) +
+			cStyle.Width(commitWidth).MaxWidth(commitWidth).Render(hStyle.Render(wt.HEAD[:7])) +
+			cStyle.Width(locationWidth).MaxWidth(locationWidth).Render(pStyle.Render(wt.Path))
+
+		b.WriteString(rStyle.Render(line))
 		b.WriteString("\n")
+		if i < len(m.worktrees)-1 {
+			b.WriteString(rowStyle.Render(divider))
+			b.WriteString("\n")
+		}
 	}
 
 	s := b.String()

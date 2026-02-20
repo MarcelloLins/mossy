@@ -6,9 +6,10 @@ type Repository struct {
 }
 
 type ProgramContext struct {
-	Width      int
-	Height     int
-	Repos      []Repository
-	ActiveRepo int
-	Message    string
+	Width         int
+	Height        int
+	Repos         []Repository
+	ActiveRepo    int
+	Message       string
+	WorktreeCount int
 }

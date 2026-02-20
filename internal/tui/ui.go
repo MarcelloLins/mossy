@@ -94,6 +94,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.fetchActiveWorktrees()
 	case worktreelist.WorktreesFetchedMsg:
 		m.worktreeList, _ = m.worktreeList.Update(msg)
+		m.ctx.WorktreeCount = len(msg.Worktrees)
 		return m, nil
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
@@ -188,6 +189,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.tabs.ScrollToActive()
 				return m, m.fetchActiveWorktrees()
 			}
+		case "j", "down", "k", "up":
+			var cmd tea.Cmd
+			m.worktreeList, cmd = m.worktreeList.Update(msg)
+			return m, cmd
 		}
 	}
 
