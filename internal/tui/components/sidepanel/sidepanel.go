@@ -10,7 +10,7 @@ import (
 
 var (
 	borderStyle = lipgloss.NewStyle().
-			BorderLeft(true).
+			BorderTop(true).
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderForeground(lipgloss.Color("240"))
 
@@ -124,15 +124,21 @@ func (m Model) renderNav(width int) string {
 }
 
 func (m Model) View(width, height int) string {
-	contentWidth := width - 1 - 2 // border char + padding
+	contentWidth := width - 2 // padding only (no side border)
 	if contentWidth < 0 {
 		contentWidth = 0
+	}
+
+	// Top border consumes 1 line
+	innerHeight := height - 1
+	if innerHeight < 0 {
+		innerHeight = 0
 	}
 
 	nav := m.renderNav(contentWidth)
 	navHeight := lipgloss.Height(nav)
 
-	bodyHeight := height - navHeight
+	bodyHeight := innerHeight - navHeight
 	if bodyHeight < 0 {
 		bodyHeight = 0
 	}
@@ -226,16 +232,16 @@ func (m Model) View(width, height int) string {
 
 	inner := nav + "\n" + lipgloss.NewStyle().Padding(0, 1).Render(strings.Join(lines, "\n"))
 
-	// Final pad/truncate to exactly height
+	// Final pad/truncate to exactly innerHeight
 	allLines := strings.Split(inner, "\n")
-	for len(allLines) < height {
+	for len(allLines) < innerHeight {
 		allLines = append(allLines, "")
 	}
-	if len(allLines) > height {
-		allLines = allLines[:height]
+	if len(allLines) > innerHeight {
+		allLines = allLines[:innerHeight]
 	}
 
 	return borderStyle.
-		Width(width - 1).
+		Width(width).
 		Render(strings.Join(allLines, "\n"))
 }

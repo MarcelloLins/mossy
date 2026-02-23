@@ -493,14 +493,20 @@ func (m Model) View() string {
 					Render("Press 'a' to add your first repository"))
 		content = lipgloss.Place(m.ctx.Width, mid, lipgloss.Center, lipgloss.Center, welcome)
 	} else if m.worktreeList.HasWorktrees() {
-		panelWidth := m.ctx.Width / 3
-		listWidth := m.ctx.Width - panelWidth
+		panelHeight := mid / 3
+		if panelHeight < 5 {
+			panelHeight = 5
+		}
+		listHeight := mid - panelHeight
+		if listHeight < 0 {
+			listHeight = 0
+		}
 		if wt, ok := m.worktreeList.SelectedWorktree(); ok {
 			m.sidePanel.SetWorktree(&wt)
 		}
-		list := m.worktreeList.View(listWidth, mid)
-		panel := m.sidePanel.View(panelWidth, mid)
-		content = lipgloss.JoinHorizontal(lipgloss.Top, list, panel)
+		list := m.worktreeList.View(m.ctx.Width, listHeight)
+		panel := m.sidePanel.View(m.ctx.Width, panelHeight)
+		content = list + "\n" + panel
 	} else {
 		content = m.worktreeList.View(m.ctx.Width, mid)
 	}
