@@ -498,16 +498,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 			paneID, has := m.ctx.TmuxPanes[wt.Path]
-			if !has {
-				m.ctx.Message = "No tmux session for this worktree"
-				m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
-				return m, uiTickCmd()
-			}
-			if !tmux.PaneExists(paneID) {
+			if has && !tmux.PaneExists(paneID) {
 				delete(m.ctx.TmuxPanes, wt.Path)
-				m.ctx.Message = "Tmux pane was closed externally"
-				m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
-				return m, uiTickCmd()
+				m.saveTmuxSessions()
+				has = false
+			}
+			if !has {
+				newPane, err := tmux.CreateWindow(wt.Path)
+				if err != nil {
+					m.ctx.Message = fmt.Sprintf("Error creating pane: %v", err)
+					m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
+					return m, uiTickCmd()
+				}
+				paneID = newPane
+				m.ctx.TmuxPanes[wt.Path] = paneID
+				m.saveTmuxSessions()
 			}
 			if err := tmux.JoinPane(paneID); err != nil {
 				m.ctx.Message = fmt.Sprintf("Error: %v", err)
