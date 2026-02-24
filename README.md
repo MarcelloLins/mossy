@@ -41,6 +41,7 @@ mossy
 | `j` / `k` | Navigate lists |
 | `r` | Refresh |
 | `R` | Toggle auto-refresh |
+| `space` | Toggle tmux pane |
 | `enter` | Select / open directory |
 | `esc` | Cancel |
 | `?` | Help |

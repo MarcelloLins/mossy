@@ -15,6 +15,7 @@ type KeyMap struct {
 	NextCommit     key.Binding
 	Refresh        key.Binding
 	AutoRefresh    key.Binding
+	TmuxPane       key.Binding
 	Help           key.Binding
 	Quit           key.Binding
 }
@@ -68,6 +69,10 @@ var Keys = KeyMap{
 		key.WithKeys("R"),
 		key.WithHelp("R", "toggle auto-refresh"),
 	),
+	TmuxPane: key.NewBinding(
+		key.WithKeys(" "),
+		key.WithHelp("space", "toggle tmux pane"),
+	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),
 		key.WithHelp("?", "help"),
@@ -87,6 +92,6 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.Up, k.Down, k.Left, k.Right},
 		{k.AddRepo, k.DeleteRepo, k.NewWorktree, k.RemoveWorktree},
 		{k.PrevCommit, k.NextCommit, k.Refresh, k.AutoRefresh},
-		{k.Help, k.Quit},
+		{k.TmuxPane, k.Help, k.Quit},
 	}
 }

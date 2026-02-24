@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcellolins/mossy/internal/config"
 	"github.com/marcellolins/mossy/internal/git"
+	"github.com/marcellolins/mossy/internal/tmux"
 	"github.com/marcellolins/mossy/internal/tui/components/footer"
 	"github.com/marcellolins/mossy/internal/tui/components/repopicker"
 	"github.com/marcellolins/mossy/internal/tui/components/sidepanel"
@@ -36,6 +37,7 @@ type worktreeCreatedMsg struct {
 
 type worktreeRemovedMsg struct {
 	name string
+	path string
 	err  error
 }
 
@@ -94,6 +96,7 @@ func New() Model {
 	ctx := &context.ProgramContext{
 		ActiveRepo:  -1,
 		AutoRefresh: true,
+		TmuxPanes:   make(map[string]string),
 	}
 	return Model{
 		ctx:          ctx,
@@ -174,6 +177,22 @@ func (m Model) fetchAllWorktrees() tea.Cmd {
 	}
 }
 
+func (m *Model) hideTmuxPane() {
+	if m.ctx.TmuxVisiblePane != "" {
+		tmux.BreakPane(m.ctx.TmuxVisiblePane)
+		m.ctx.TmuxVisiblePane = ""
+	}
+}
+
+func (m *Model) saveTmuxSessions() {
+	_ = config.SaveSessions(config.Sessions{Panes: m.ctx.TmuxPanes})
+}
+
+func (m *Model) quitTmux() {
+	m.hideTmuxPane()
+	m.saveTmuxSessions()
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case configLoadedMsg:
@@ -186,6 +205,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if len(m.ctx.Repos) > 0 {
 				m.ctx.ActiveRepo = 0
+			}
+		}
+		if tmux.InsideTmux() {
+			if sessions, err := config.LoadSessions(); err == nil {
+				for path, paneID := range sessions.Panes {
+					if tmux.PaneExists(paneID) {
+						m.ctx.TmuxPanes[path] = paneID
+					}
+				}
+				if len(m.ctx.TmuxPanes) != len(sessions.Panes) {
+					m.saveTmuxSessions()
+				}
 			}
 		}
 		m.ctx.LastRefresh = time.Now()
@@ -242,6 +273,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ctx.Message = fmt.Sprintf("Error: %v", msg.err)
 		} else {
 			m.ctx.Message = fmt.Sprintf("Worktree created at %s", msg.path)
+			if tmux.InsideTmux() {
+				if paneID, err := tmux.CreateWindow(msg.path); err == nil {
+					m.ctx.TmuxPanes[msg.path] = paneID
+					m.saveTmuxSessions()
+				}
+			}
 		}
 		m.ctx.MessageExpiry = time.Now().Add(5 * time.Second)
 		m.view = viewNormal
@@ -252,6 +289,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ctx.Message = fmt.Sprintf("Error: %v", msg.err)
 		} else {
 			m.ctx.Message = fmt.Sprintf("Worktree %q removed", msg.name)
+			if paneID, ok := m.ctx.TmuxPanes[msg.path]; ok {
+				if paneID == m.ctx.TmuxVisiblePane {
+					m.ctx.TmuxVisiblePane = ""
+				}
+				tmux.KillPane(paneID)
+				delete(m.ctx.TmuxPanes, msg.path)
+				m.saveTmuxSessions()
+			}
 		}
 		m.ctx.MessageExpiry = time.Now().Add(5 * time.Second)
 		m.view = viewNormal
@@ -271,6 +316,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
+			m.quitTmux()
 			return m, tea.Quit
 		}
 		if msg.String() == "?" {
@@ -362,7 +408,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.worktreeRemove.Removing = true
 			return m, func() tea.Msg {
 				err := git.RemoveWorktree(repoPath, wtPath, branch, deleteBranch)
-				return worktreeRemovedMsg{name: wtName, err: err}
+				return worktreeRemovedMsg{name: wtName, path: wtPath, err: err}
 			}
 		case worktreeremove.WorktreeRemoveCancelledMsg:
 			m.view = viewNormal
@@ -378,6 +424,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q":
+			m.quitTmux()
 			return m, tea.Quit
 		case "a":
 			home, err := os.UserHomeDir()
@@ -431,21 +478,69 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.view = viewConfirmDelete
 				return m, nil
 			}
+		case " ":
+			if len(m.ctx.Repos) == 0 {
+				break
+			}
+			if !tmux.InsideTmux() {
+				m.ctx.Message = "tmux not detected — run mossy inside tmux"
+				m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
+				return m, uiTickCmd()
+			}
+			// Toggle off
+			if m.ctx.TmuxVisiblePane != "" {
+				m.hideTmuxPane()
+				return m, nil
+			}
+			// Toggle on
+			wt, ok := m.worktreeList.SelectedWorktree()
+			if !ok {
+				break
+			}
+			paneID, has := m.ctx.TmuxPanes[wt.Path]
+			if !has {
+				m.ctx.Message = "No tmux session for this worktree"
+				m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
+				return m, uiTickCmd()
+			}
+			if !tmux.PaneExists(paneID) {
+				delete(m.ctx.TmuxPanes, wt.Path)
+				m.ctx.Message = "Tmux pane was closed externally"
+				m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
+				return m, uiTickCmd()
+			}
+			if err := tmux.JoinPane(paneID); err != nil {
+				m.ctx.Message = fmt.Sprintf("Error: %v", err)
+				m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
+				return m, uiTickCmd()
+			}
+			m.ctx.TmuxVisiblePane = paneID
+			return m, nil
 		case "h", "left":
 			if len(m.ctx.Repos) > 0 && m.ctx.ActiveRepo > 0 {
 				m.ctx.ActiveRepo--
 				m.tabs.ScrollToActive()
+				m.hideTmuxPane()
 				return m, m.fetchActiveWorktrees()
 			}
 		case "l", "right":
 			if len(m.ctx.Repos) > 0 && m.ctx.ActiveRepo < len(m.ctx.Repos)-1 {
 				m.ctx.ActiveRepo++
 				m.tabs.ScrollToActive()
+				m.hideTmuxPane()
 				return m, m.fetchActiveWorktrees()
 			}
 		case "j", "down", "k", "up":
 			var cmd tea.Cmd
 			m.worktreeList, cmd = m.worktreeList.Update(msg)
+			if m.ctx.TmuxVisiblePane != "" {
+				if wt, ok := m.worktreeList.SelectedWorktree(); ok {
+					if newPane, has := m.ctx.TmuxPanes[wt.Path]; has && newPane != m.ctx.TmuxVisiblePane {
+						tmux.SwapPane(m.ctx.TmuxVisiblePane, newPane)
+						m.ctx.TmuxVisiblePane = newPane
+					}
+				}
+			}
 			return m, tea.Batch(cmd, m.fetchCommits())
 		case "[":
 			m.sidePanel.PrevCommit()

@@ -110,7 +110,13 @@ func (m Model) View() string {
 	}
 	newWt := inactiveViewStyle.Render("⋮ ") + inactiveViewStyle.Underline(true).UnsetPadding().Render("N") + inactiveViewStyle.UnsetPadding().Render("ew Worktree")
 	removeWt := inactiveViewStyle.Render("⋮ ") + inactiveViewStyle.UnsetPadding().Render("Remove Worktree (") + inactiveViewStyle.Underline(true).UnsetPadding().Render("x") + inactiveViewStyle.UnsetPadding().Render(")")
-	left := bell + sep + autoRefresh + sep + newWt + sep + removeWt
+	var tmuxLabel string
+	if m.ctx.TmuxVisiblePane != "" {
+		tmuxLabel = activeViewStyle.Render("⋮ Terminal (") + activeViewStyle.Underline(true).UnsetPadding().Render("space") + activeViewStyle.UnsetPadding().Render(")")
+	} else {
+		tmuxLabel = inactiveViewStyle.Render("⋮ Terminal (") + inactiveViewStyle.Underline(true).UnsetPadding().Render("space") + inactiveViewStyle.UnsetPadding().Render(")")
+	}
+	left := bell + sep + autoRefresh + sep + newWt + sep + removeWt + sep + tmuxLabel
 
 	// Center: message area
 	var mid string

@@ -20,4 +20,6 @@ type ProgramContext struct {
 	LastRefresh     time.Time
 	PausedRemaining int
 	ShowHelp        bool
+	TmuxPanes       map[string]string // worktree path → tmux pane ID
+	TmuxVisiblePane string            // currently joined pane ID
 }
