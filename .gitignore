@@ -1,6 +1,9 @@
 # Binary
 mossy
 
+# dmux worktrees
+.dmux/worktrees/
+
 # Go
 *.exe
 *.exe~
