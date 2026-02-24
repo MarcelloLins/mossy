@@ -36,6 +36,7 @@ mossy
 | `d` | Remove a repository |
 | `n` | New worktree |
 | `x` | Remove worktree |
+| `u` | Update worktree from default branch (rebase) |
 | `[` / `]` | Prev / next commit |
 | `h` / `l` | Switch tabs |
 | `j` / `k` | Navigate lists |

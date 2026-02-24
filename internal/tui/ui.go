@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -50,6 +51,11 @@ type repoWorktreeResult struct {
 type commitsFetchedMsg struct {
 	commits []git.Commit
 	err     error
+}
+
+type rebaseFinishedMsg struct {
+	wtPath string
+	err    error
 }
 
 type allWorktreesFetchedMsg struct {
@@ -301,6 +307,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ctx.MessageExpiry = time.Now().Add(5 * time.Second)
 		m.view = viewNormal
 		return m, tea.Batch(m.fetchActiveWorktrees(), uiTickCmd())
+	case rebaseFinishedMsg:
+		m.worktreeList = m.worktreeList.StopRebasing()
+		if msg.err != nil {
+			m.ctx.Message = "Rebase failed — resolve manually in terminal (space)"
+		} else {
+			m.ctx.Message = fmt.Sprintf("Rebased %s onto default branch", filepath.Base(msg.wtPath))
+		}
+		m.ctx.MessageExpiry = time.Now().Add(5 * time.Second)
+		return m, tea.Batch(m.fetchActiveWorktrees(), uiTickCmd())
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.worktreeList, cmd = m.worktreeList.Update(msg)
+		return m, cmd
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
 		m.ctx.Height = msg.Height
@@ -471,6 +490,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ctx.PausedRemaining = remaining
 			}
 			return m, nil
+		case "u":
+			if m.worktreeList.RebasingPath != "" {
+				break
+			}
+			wt, ok := m.worktreeList.SelectedWorktree()
+			if !ok || wt.Branch == "" || wt.Branch == "(detached)" {
+				break
+			}
+			repoPath := m.ctx.Repos[m.ctx.ActiveRepo].Path
+			wtPath := wt.Path
+			var cmd tea.Cmd
+			m.worktreeList, cmd = m.worktreeList.StartRebasing(wtPath)
+			return m, tea.Batch(cmd, func() tea.Msg {
+				err := git.RebaseOnto(repoPath, wtPath)
+				return rebaseFinishedMsg{wtPath: wtPath, err: err}
+			})
 		case "d":
 			if len(m.ctx.Repos) > 0 {
 				name := m.ctx.Repos[m.ctx.ActiveRepo].Name

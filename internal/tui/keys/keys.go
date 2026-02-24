@@ -11,6 +11,7 @@ type KeyMap struct {
 	DeleteRepo     key.Binding
 	NewWorktree    key.Binding
 	RemoveWorktree key.Binding
+	UpdateWorktree key.Binding
 	PrevCommit     key.Binding
 	NextCommit     key.Binding
 	Refresh        key.Binding
@@ -53,6 +54,10 @@ var Keys = KeyMap{
 		key.WithKeys("x"),
 		key.WithHelp("x", "remove worktree"),
 	),
+	UpdateWorktree: key.NewBinding(
+		key.WithKeys("u"),
+		key.WithHelp("u", "update from default branch"),
+	),
 	PrevCommit: key.NewBinding(
 		key.WithKeys("["),
 		key.WithHelp("[", "prev commit"),
@@ -90,7 +95,7 @@ func (k KeyMap) ShortHelp() []key.Binding {
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Left, k.Right},
-		{k.AddRepo, k.DeleteRepo, k.NewWorktree, k.RemoveWorktree},
+		{k.AddRepo, k.DeleteRepo, k.NewWorktree, k.RemoveWorktree, k.UpdateWorktree},
 		{k.PrevCommit, k.NextCommit, k.Refresh, k.AutoRefresh},
 		{k.TmuxPane, k.Help, k.Quit},
 	}

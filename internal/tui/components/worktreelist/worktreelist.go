@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcellolins/mossy/internal/git"
@@ -54,6 +55,9 @@ var (
 
 	dividerStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("238"))
+
+	rebasingStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("214"))
 )
 
 var (
@@ -64,15 +68,19 @@ var (
 )
 
 type Model struct {
-	ctx       *context.ProgramContext
-	worktrees []git.Worktree
-	cursor    int
-	err       error
-	loaded    bool
+	ctx          *context.ProgramContext
+	worktrees    []git.Worktree
+	cursor       int
+	err          error
+	loaded       bool
+	spinner      spinner.Model
+	RebasingPath string
 }
 
 func New(ctx *context.ProgramContext) Model {
-	return Model{ctx: ctx}
+	s := spinner.New()
+	s.Spinner = spinner.MiniDot
+	return Model{ctx: ctx, spinner: s}
 }
 
 func (m Model) SelectedWorktree() (git.Worktree, bool) {
@@ -90,6 +98,16 @@ func (m Model) Init() tea.Cmd {
 	return nil
 }
 
+func (m Model) StartRebasing(path string) (Model, tea.Cmd) {
+	m.RebasingPath = path
+	return m, m.spinner.Tick
+}
+
+func (m Model) StopRebasing() Model {
+	m.RebasingPath = ""
+	return m
+}
+
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case WorktreesFetchedMsg:
@@ -97,6 +115,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.err = msg.Err
 		m.cursor = 0
 		m.loaded = true
+	case spinner.TickMsg:
+		if m.RebasingPath != "" {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
 	case tea.KeyMsg:
 		if len(m.worktrees) == 0 {
 			break
@@ -193,7 +217,13 @@ func (m Model) View(width, height int) string {
 
 		wtName := filepath.Base(wt.Path)
 		var linesCell string
-		if wt.Additions > 0 || wt.Deletions > 0 {
+		if wt.Path == m.RebasingPath {
+			rbStyle := rebasingStyle
+			if selected {
+				rbStyle = rbStyle.Background(bg)
+			}
+			linesCell = rbStyle.Render(m.spinner.View() + " rebasing…")
+		} else if wt.Additions > 0 || wt.Deletions > 0 {
 			linesCell = aStyle.Render(fmt.Sprintf("+%d", wt.Additions)) +
 				cStyle.Render(" ") +
 				dStyle.Render(fmt.Sprintf("-%d", wt.Deletions))

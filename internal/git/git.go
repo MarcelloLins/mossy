@@ -246,6 +246,29 @@ func detectDefaultBranch(repoPath string) string {
 	return "main"
 }
 
+// RebaseOnto fetches the latest default branch from origin and rebases the
+// worktree's branch onto it. If the rebase encounters conflicts it is
+// automatically aborted and an error is returned.
+func RebaseOnto(repoPath, wtPath string) error {
+	defaultBranch := detectDefaultBranch(repoPath)
+
+	fetch := exec.Command("git", "fetch", "origin", defaultBranch)
+	fetch.Dir = wtPath
+	if out, err := fetch.CombinedOutput(); err != nil {
+		return fmt.Errorf("fetch failed: %s", strings.TrimSpace(string(out)))
+	}
+
+	rebase := exec.Command("git", "rebase", "origin/"+defaultBranch)
+	rebase.Dir = wtPath
+	if out, err := rebase.CombinedOutput(); err != nil {
+		abort := exec.Command("git", "rebase", "--abort")
+		abort.Dir = wtPath
+		abort.Run()
+		return fmt.Errorf("conflicts detected — resolve in terminal (%s)", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func diffStats(repoPath, base, head string) (additions, deletions int) {
 	cmd := exec.Command("git", "diff", "--numstat", base+"..."+head)
 	cmd.Dir = repoPath

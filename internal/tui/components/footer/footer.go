@@ -98,7 +98,7 @@ func (m Model) View() string {
 			}
 			countdown = base.UnsetPadding().Render(fmt.Sprintf(" (%ds)", remaining))
 		}
-		autoRefresh = base.Render("⟳ Auto") + keyStyle.UnsetPadding().Render("R") + base.UnsetPadding().Render("efresh") + countdown
+		autoRefresh = base.UnsetPadding().Render("⟳ AutoRefresh (") + keyStyle.UnsetPadding().Render("R") + base.UnsetPadding().Render(")") + countdown
 	} else {
 		base := inactiveViewStyle
 		keyStyle := base.Underline(true)
@@ -106,17 +106,18 @@ func (m Model) View() string {
 		if m.ctx.PausedRemaining > 0 {
 			countdown = base.UnsetPadding().Render(fmt.Sprintf(" (%ds)", m.ctx.PausedRemaining))
 		}
-		autoRefresh = base.Render("⟳ Auto") + keyStyle.UnsetPadding().Render("R") + base.UnsetPadding().Render("efresh") + countdown
+		autoRefresh = base.UnsetPadding().Render("⟳ AutoRefresh (") + keyStyle.UnsetPadding().Render("R") + base.UnsetPadding().Render(")") + countdown
 	}
-	newWt := inactiveViewStyle.Render("⋮ ") + inactiveViewStyle.Underline(true).UnsetPadding().Render("N") + inactiveViewStyle.UnsetPadding().Render("ew Worktree")
-	removeWt := inactiveViewStyle.Render("⋮ ") + inactiveViewStyle.UnsetPadding().Render("Remove Worktree (") + inactiveViewStyle.Underline(true).UnsetPadding().Render("x") + inactiveViewStyle.UnsetPadding().Render(")")
+	newWt := inactiveViewStyle.UnsetPadding().Render("New Worktree (") + inactiveViewStyle.Underline(true).UnsetPadding().Render("n") + inactiveViewStyle.UnsetPadding().Render(")")
+	removeWt := inactiveViewStyle.UnsetPadding().Render("Remove Worktree (") + inactiveViewStyle.Underline(true).UnsetPadding().Render("x") + inactiveViewStyle.UnsetPadding().Render(")")
+	updateWt := inactiveViewStyle.UnsetPadding().Render("Update Worktree (") + inactiveViewStyle.Underline(true).UnsetPadding().Render("u") + inactiveViewStyle.UnsetPadding().Render(")")
 	var tmuxLabel string
 	if m.ctx.TmuxVisiblePane != "" {
-		tmuxLabel = activeViewStyle.Render("⋮ Terminal (") + activeViewStyle.Underline(true).UnsetPadding().Render("space") + activeViewStyle.UnsetPadding().Render(")")
+		tmuxLabel = activeViewStyle.UnsetPadding().Render("Terminal (") + activeViewStyle.Underline(true).UnsetPadding().Render("space") + activeViewStyle.UnsetPadding().Render(")")
 	} else {
-		tmuxLabel = inactiveViewStyle.Render("⋮ Terminal (") + inactiveViewStyle.Underline(true).UnsetPadding().Render("space") + inactiveViewStyle.UnsetPadding().Render(")")
+		tmuxLabel = inactiveViewStyle.UnsetPadding().Render("Terminal (") + inactiveViewStyle.Underline(true).UnsetPadding().Render("space") + inactiveViewStyle.UnsetPadding().Render(")")
 	}
-	left := bell + sep + autoRefresh + sep + newWt + sep + removeWt + sep + tmuxLabel
+	left := bell + sep + autoRefresh + sep + newWt + sep + removeWt + sep + updateWt + sep + tmuxLabel
 
 	// Center: message area
 	var mid string
