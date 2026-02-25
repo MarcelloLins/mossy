@@ -188,8 +188,10 @@ func enrichCommits(repoPath, branch string, commits []Commit) {
 			}
 		}
 
-		// AI co-authors
-		matches := aiAgentPattern.FindAllStringSubmatch(commits[i].Body, -1)
+		// AI co-authors (check both subject and body — some commits
+		// have the trailer squashed into the subject line)
+		full := commits[i].Subject + "\n" + commits[i].Body
+		matches := aiAgentPattern.FindAllStringSubmatch(full, -1)
 		seen := make(map[string]bool)
 		for _, m := range matches {
 			name := m[1]
