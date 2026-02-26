@@ -20,8 +20,9 @@ mossy
 *.swo
 *~
 
-# Docs
-docs/
+# Docs (keep assets tracked)
+docs/*
+!docs/assets/
 
 # OS
 .DS_Store

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="mossy" width="200" />
+  <img src="docs/assets/logo.png" alt="mossy" width="600" />
 </p>
 
 <h1 align="center">🌿 mossy</h1>
