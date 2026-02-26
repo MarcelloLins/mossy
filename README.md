@@ -5,7 +5,7 @@
 <h1 align="center">🌿 mossy</h1>
 
 <p align="center">
-  A terminal dashboard for your GitHub repositories, built with <a href="https://github.com/charmbracelet/bubbletea">Bubble Tea</a>.
+  A terminal ui (TUI) for your Git worktrees, built with <a href="https://github.com/charmbracelet/bubbletea">Bubble Tea</a>.
 </p>
 
 ---
