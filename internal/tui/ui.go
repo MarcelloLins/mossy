@@ -184,10 +184,21 @@ func (m Model) fetchAllWorktrees() tea.Cmd {
 }
 
 func (m *Model) hideTmuxPane() {
-	if m.ctx.TmuxVisiblePane != "" {
-		tmux.BreakPane(m.ctx.TmuxVisiblePane)
-		m.ctx.TmuxVisiblePane = ""
+	switch m.ctx.TmuxPaneState {
+	case context.PaneMossy:
+		if m.ctx.TmuxDisplacedPane != "" && tmux.PaneExists(m.ctx.TmuxDisplacedPane) {
+			// Swap the displaced external pane back into position, which
+			// also sends our worktree pane back to the background session.
+			tmux.SwapPane(m.ctx.TmuxDisplacedPane, m.ctx.TmuxVisiblePane)
+		} else {
+			tmux.BreakPane(m.ctx.TmuxVisiblePane)
+		}
+	case context.PaneExternal:
+		// External pane is already visible — just stop tracking it.
 	}
+	m.ctx.TmuxVisiblePane = ""
+	m.ctx.TmuxDisplacedPane = ""
+	m.ctx.TmuxPaneState = context.PaneNone
 }
 
 func (m *Model) saveTmuxSessions() {
@@ -522,40 +533,72 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
 				return m, uiTickCmd()
 			}
-			// Toggle off
-			if m.ctx.TmuxVisiblePane != "" {
-				m.hideTmuxPane()
+
+			switch m.ctx.TmuxPaneState {
+			case context.PaneMossy:
+				// Mossy panel visible → swap to dormant/external panel, or go full-screen
+				if m.ctx.TmuxDisplacedPane != "" && tmux.PaneExists(m.ctx.TmuxDisplacedPane) {
+					tmux.SwapPane(m.ctx.TmuxDisplacedPane, m.ctx.TmuxVisiblePane)
+					m.ctx.TmuxVisiblePane = ""
+					m.ctx.TmuxPaneState = context.PaneExternal
+				} else {
+					tmux.BreakPane(m.ctx.TmuxVisiblePane)
+					m.ctx.TmuxVisiblePane = ""
+					m.ctx.TmuxDisplacedPane = ""
+					m.ctx.TmuxPaneState = context.PaneNone
+				}
 				return m, nil
-			}
-			// Toggle on
-			wt, ok := m.worktreeList.SelectedWorktree()
-			if !ok {
-				break
-			}
-			paneID, has := m.ctx.TmuxPanes[wt.Path]
-			if has && !tmux.PaneExists(paneID) {
-				delete(m.ctx.TmuxPanes, wt.Path)
-				m.saveTmuxSessions()
-				has = false
-			}
-			if !has {
-				newPane, err := tmux.CreateWindow(wt.Path)
-				if err != nil {
-					m.ctx.Message = fmt.Sprintf("Error creating pane: %v", err)
+
+			case context.PaneExternal:
+				// External/dormant panel visible → go full-screen
+				tmux.BreakPaneToWindow(m.ctx.TmuxDisplacedPane)
+				m.ctx.TmuxDisplacedPane = ""
+				m.ctx.TmuxPaneState = context.PaneNone
+				return m, nil
+
+			case context.PaneNone:
+				// Full-screen → open mossy-registered panel
+				wt, ok := m.worktreeList.SelectedWorktree()
+				if !ok {
+					break
+				}
+				paneID, has := m.ctx.TmuxPanes[wt.Path]
+				if has && !tmux.PaneExists(paneID) {
+					delete(m.ctx.TmuxPanes, wt.Path)
+					m.saveTmuxSessions()
+					has = false
+				}
+				if !has {
+					newPane, err := tmux.CreateWindow(wt.Path)
+					if err != nil {
+						m.ctx.Message = fmt.Sprintf("Error creating pane: %v", err)
+						m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
+						return m, uiTickCmd()
+					}
+					paneID = newPane
+					m.ctx.TmuxPanes[wt.Path] = paneID
+					m.saveTmuxSessions()
+				}
+				// If there's already a pane to the right (opened externally),
+				// swap it with our worktree pane instead of splitting awkwardly
+				// in between. The external pane gets moved to the background
+				// session and can be recovered via the space cycle.
+				if neighbor := tmux.RightNeighborPane(); neighbor != "" {
+					if err := tmux.SwapPane(paneID, neighbor); err != nil {
+						m.ctx.Message = fmt.Sprintf("Error: %v", err)
+						m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
+						return m, uiTickCmd()
+					}
+					m.ctx.TmuxDisplacedPane = neighbor
+				} else if err := tmux.JoinPane(paneID); err != nil {
+					m.ctx.Message = fmt.Sprintf("Error: %v", err)
 					m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
 					return m, uiTickCmd()
 				}
-				paneID = newPane
-				m.ctx.TmuxPanes[wt.Path] = paneID
-				m.saveTmuxSessions()
+				m.ctx.TmuxVisiblePane = paneID
+				m.ctx.TmuxPaneState = context.PaneMossy
+				return m, nil
 			}
-			if err := tmux.JoinPane(paneID); err != nil {
-				m.ctx.Message = fmt.Sprintf("Error: %v", err)
-				m.ctx.MessageExpiry = time.Now().Add(3 * time.Second)
-				return m, uiTickCmd()
-			}
-			m.ctx.TmuxVisiblePane = paneID
-			return m, nil
 		case "h", "left":
 			if len(m.ctx.Repos) > 0 && m.ctx.ActiveRepo > 0 {
 				m.ctx.ActiveRepo--
@@ -573,7 +616,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "j", "down", "k", "up":
 			var cmd tea.Cmd
 			m.worktreeList, cmd = m.worktreeList.Update(msg)
-			if m.ctx.TmuxVisiblePane != "" {
+			if m.ctx.TmuxPaneState == context.PaneMossy {
 				if wt, ok := m.worktreeList.SelectedWorktree(); ok {
 					if newPane, has := m.ctx.TmuxPanes[wt.Path]; has && newPane != m.ctx.TmuxVisiblePane {
 						tmux.SwapPane(m.ctx.TmuxVisiblePane, newPane)

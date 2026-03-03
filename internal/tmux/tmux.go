@@ -3,6 +3,7 @@ package tmux
 import (
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -73,14 +74,74 @@ func SwapPane(paneA, paneB string) error {
 	return cmd.Run()
 }
 
+// RightNeighborPane returns the pane ID of the pane immediately to the right
+// of the current pane in the same window, or "" if there is none.
+func RightNeighborPane() string {
+	// Get the current pane ID.
+	curOut, err := exec.Command("tmux", "display-message", "-p", "#{pane_id}\t#{pane_left}\t#{pane_width}").Output()
+	if err != nil {
+		return ""
+	}
+	curFields := strings.Split(strings.TrimSpace(string(curOut)), "\t")
+	if len(curFields) != 3 {
+		return ""
+	}
+	curID := curFields[0]
+	curLeft, _ := strconv.Atoi(curFields[1])
+	curWidth, _ := strconv.Atoi(curFields[2])
+	curRight := curLeft + curWidth
+
+	// List all panes in the current window.
+	listOut, err := exec.Command("tmux", "list-panes", "-F", "#{pane_id}\t#{pane_left}").Output()
+	if err != nil {
+		return ""
+	}
+
+	// Find the pane whose left edge is closest to (and >= ) our right edge.
+	bestID := ""
+	bestLeft := -1
+	for _, line := range strings.Split(strings.TrimSpace(string(listOut)), "\n") {
+		parts := strings.Split(line, "\t")
+		if len(parts) != 2 || parts[0] == curID {
+			continue
+		}
+		pl, _ := strconv.Atoi(parts[1])
+		if pl >= curRight && (bestLeft == -1 || pl < bestLeft) {
+			bestID = parts[0]
+			bestLeft = pl
+		}
+	}
+	return bestID
+}
+
+// BreakPaneToWindow moves the specified pane into its own window in the
+// current session. The new window is not focused (-d).
+func BreakPaneToWindow(paneID string) error {
+	return exec.Command("tmux", "break-pane", "-d", "-s", paneID).Run()
+}
+
 // KillPane kills a tmux pane by its ID.
 func KillPane(paneID string) error {
 	cmd := exec.Command("tmux", "kill-pane", "-t", paneID)
 	return cmd.Run()
 }
 
-// PaneExists returns true if the given pane ID exists.
+// PaneExists returns true if the given pane ID exists and belongs to
+// either the mossy-worktrees background session or the current session
+// (i.e. it was joined into the user's window).
 func PaneExists(paneID string) bool {
-	cmd := exec.Command("tmux", "display-message", "-t", paneID, "-p", "#{pane_id}")
-	return cmd.Run() == nil
+	out, err := exec.Command("tmux", "display-message", "-t", paneID, "-p", "#{session_name}").Output()
+	if err != nil {
+		return false
+	}
+	sess := strings.TrimSpace(string(out))
+	if sess == sessionName {
+		return true
+	}
+	// Also accept panes in the current session (already joined/visible).
+	cur, err := exec.Command("tmux", "display-message", "-p", "#{session_name}").Output()
+	if err != nil {
+		return false
+	}
+	return sess == strings.TrimSpace(string(cur))
 }
